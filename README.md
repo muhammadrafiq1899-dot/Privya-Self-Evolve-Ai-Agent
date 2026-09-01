@@ -2,6 +2,20 @@
 
 A complete, self-evolving AI agent optimized for **Termux on Android** with **8 advanced features**: hardware access, vision, voice, semantic search, reflection, event-driven proactivity, git self-versioning, and sub-agent delegation.
 
+## ⚡ One-Command Install
+
+**Paste this single command into Termux to install everything:**
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/YOUR_USER/self-evolving-agent/main/setup.sh)
+```
+
+Or if you already have the repo:
+
+```bash
+cd ~/self-evolving-agent && bash setup.sh
+```
+
 ## ✨ Features
 
 ### Core Features
@@ -58,7 +72,21 @@ self-evolving-agent/
 
 ## 🚀 Quick Start
 
-### 1. Install (Termux)
+### Option A: One-Command Install (Recommended)
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/YOUR_USER/self-evolving-agent/main/setup.sh)
+```
+
+This will:
+- ✅ Update Termux packages
+- ✅ Install Python, git, and dependencies
+- ✅ Clone the repository
+- ✅ Install all Python packages
+- ✅ Set up configuration
+- ✅ Create shortcuts
+
+### Option B: Manual Install
 
 ```bash
 # Update Termux
