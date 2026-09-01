@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 AI Agent Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>🤖 Self-Evolving AI Agent</h1>
+                <span class="status-badge" id="status-badge">Connecting...</span>
+            </div>
+            <div class="header-right">
+                <span class="provider" id="provider">Provider: --</span>
+                <span class="uptime" id="uptime">Uptime: --</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="grid">
+            <!-- Chat Panel -->
+            <div class="panel chat-panel">
+                <div class="panel-header">
+                    <h2>💬 Chat</h2>
+                    <button class="btn btn-sm" onclick="clearChat()">Clear</button>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message system">
+                        <div class="message-content">Connected to agent. Type a message below.</div>
+                    </div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="chat-input" placeholder="Type your message..." onkeypress="if(event.key==='Enter')sendMessage()">
+                    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+
+            <!-- Stats Panel -->
+            <div class="panel stats-panel">
+                <div class="panel-header">
+                    <h2>📊 Statistics</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-memories">0</div>
+                        <div class="stat-label">Memories</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-procedures">0</div>
+                        <div class="stat-label">Procedures</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-tools">0</div>
+                        <div class="stat-label">Tools Used</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-requests">0</div>
+                        <div class="stat-label">Requests</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Panel -->
+            <div class="panel tools-panel">
+                <div class="panel-header">
+                    <h2>🔧 Tools</h2>
+                </div>
+                <div class="tools-list" id="tools-list">
+                    <div class="tool-category">
+                        <h3>Web</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">web_search</span>
+                            <span class="tool-tag">web_fetch</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Code</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">run_python</span>
+                            <span class="tool-tag">run_shell</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Memory</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">save_memory</span>
+                            <span class="tool-tag">recall_memory</span>
+                            <span class="tool-tag">semantic_search</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Vision</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">analyze_image</span>
+                            <span class="tool-tag">ocr_image</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Voice</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">speech_to_text</span>
+                            <span class="tool-tag">text_to_speech</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Hardware</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">battery_status</span>
+                            <span class="tool-tag">get_location</span>
+                            <span class="tool-tag">send_sms</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Git</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">git_commit</span>
+                            <span class="tool-tag">git_save_state</span>
+                        </div>
+                    </div>
+                    <div class="tool-category">
+                        <h3>Events</h3>
+                        <div class="tool-tags">
+                            <span class="tool-tag">add_event_rule</span>
+                            <span class="tool-tag">list_event_rules</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Panel -->
+            <div class="panel activity-panel">
+                <div class="panel-header">
+                    <h2>⚡ Recent Activity</h2>
+                    <button class="btn btn-sm" onclick="refreshActivity()">Refresh</button>
+                </div>
+                <div class="activity-list" id="activity-list">
+                    <div class="activity-item">
+                        <span class="activity-time">--</span>
+                        <span class="activity-text">Waiting for activity...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memories Panel -->
+            <div class="panel memories-panel">
+                <div class="panel-header">
+                    <h2>🧠 Memories</h2>
+                    <button class="btn btn-sm" onclick="refreshMemories()">Refresh</button>
+                </div>
+                <div class="memories-list" id="memories-list">
+                    <div class="memory-item">No memories yet.</div>
+                </div>
+            </div>
+
+            <!-- Events Panel -->
+            <div class="panel events-panel">
+                <div class="panel-header">
+                    <h2>⚡ Event Rules</h2>
+                    <button class="btn btn-sm" onclick="refreshEvents()">Refresh</button>
+                </div>
+                <div class="events-list" id="events-list">
+                    <div class="event-item">No event rules configured.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span>Self-Evolving AI Agent v2.0 | 53 Tools | 8 Features</span>
+            <span id="last-update">Last update: --</span>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
