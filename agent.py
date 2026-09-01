@@ -43,7 +43,7 @@ from textual.widgets import (
 from textual.reactive import reactive
 from rich.text import Text
 
-from llm import chat_stream, chat, get_client, set_session_provider, get_session_info, list_providers, get_models_for_provider
+from llm import chat_stream, chat, get_client, set_session_provider, get_session_info, list_providers, get_models_for_provider, fetch_models_from_provider
 from memory import short_term, long_term, procedural, MemoryEntry, Procedure
 from tools import get_tools, execute_tool
 from nl_cron import nl_to_cron, add_cron_job, list_cron_jobs
@@ -437,9 +437,9 @@ class AgentTUI(App):
             log.write(status_text)
 
         elif parts[0] == "list":
-            # Detailed model listing
+            # Detailed model listing — fetch live from APIs
             providers = list_providers()
-            list_text = Text("📋 All Providers & Models\n", style="bold cyan")
+            list_text = Text("📋 All Providers & Models (live)\n", style="bold cyan")
 
             for p in providers:
                 icon = "✅" if p["available"] else "❌"
@@ -448,9 +448,34 @@ class AgentTUI(App):
                 list_text.append(f"   {p['description']}\n", style="dim")
 
                 if p["available"]:
-                    for m in p["models"]:
+                    log.write(list_text)
+                    log.write(Text(f"   ⏳ Fetching live models from {p['id']}...\n", style="dim yellow"))
+                    list_text = Text("")
+
+                    try:
+                        live_models = await fetch_models_from_provider(p["id"])
+                    except Exception as e:
+                        live_models = p["models"]
+                        list_text.append(f"   ⚠️ API error, showing cached models: {e}\n", style="dim yellow")
+
+                    if not live_models:
+                        live_models = p["models"]
+
+                    # Show first 40 models (avoid overwhelming the TUI)
+                    shown = live_models[:40]
+                    remaining = len(live_models) - 40
+
+                    for m in shown:
+                        desc = m.get("description", "")
+                        speed = m.get("speed", "")
+                        quality = m.get("quality", "")
+                        extras = f"  {speed} {quality}" if speed or quality else ""
                         list_text.append(f"   • {m['id']}\n", style="dim")
-                        list_text.append(f"     {m['name']} – {m['description']}  {m['speed']} {m['quality']}\n", style="dim")
+                        list_text.append(f"     {m['name']} – {desc}{extras}\n", style="dim")
+
+                    if remaining > 0:
+                        list_text.append(f"   ... and {remaining} more models\n", style="dim yellow")
+                    list_text.append(f"   ({len(live_models)} total)\n", style="dim")
                 else:
                     list_text.append(f"   (Add {p['key_env']} to .env to enable)\n", style="dim")
 

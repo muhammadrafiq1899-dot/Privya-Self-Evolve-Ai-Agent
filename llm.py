@@ -232,6 +232,230 @@ def get_models_for_provider(provider: str) -> list[dict[str, str]]:
 
 
 # ---------------------------------------------------------------------------
+# Live model fetching from provider APIs
+# ---------------------------------------------------------------------------
+
+_model_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_MODEL_CACHE_TTL = 3600  # 1 hour
+
+
+def _cache_hit(provider: str) -> list[dict[str, Any]] | None:
+    """Return cached models if still fresh, else None."""
+    import time
+    if provider in _model_cache:
+        ts, models = _model_cache[provider]
+        if time.time() - ts < _MODEL_CACHE_TTL:
+            return models
+    return None
+
+
+def _cache_set(provider: str, models: list[dict[str, Any]]) -> None:
+    import time
+    _model_cache[provider] = (time.time(), models)
+
+
+async def fetch_models_from_provider(provider: str) -> list[dict[str, Any]]:
+    """Fetch live model list from a provider's API.
+
+    Returns list of dicts: {"id": ..., "name": ..., "description": ...}
+    Falls back to hardcoded list on error.
+    """
+    import httpx
+    import time
+
+    cached = _cache_hit(provider)
+    if cached is not None:
+        return cached
+
+    fallback = PROVIDERS.get(provider, {}).get("models", [])
+    try:
+        if provider == "openrouter":
+            models = await _fetch_openrouter_models()
+        elif provider == "groq":
+            models = await _fetch_groq_models()
+        elif provider == "together":
+            models = await _fetch_together_models()
+        elif provider == "gemini":
+            models = await _fetch_gemini_models()
+        elif provider == "custom":
+            models = await _fetch_custom_models()
+        else:
+            models = fallback
+
+        if models:
+            _cache_set(provider, models)
+            return models
+        # Empty from API → use hardcoded fallback
+        return fallback
+    except Exception:
+        # Fallback to hardcoded list
+        return fallback
+
+
+async def _fetch_openrouter_models() -> list[dict[str, Any]]:
+    """Fetch models from OpenRouter API."""
+    import httpx
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return []
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://openrouter.ai/api/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    models = []
+    for m in data.get("data", []):
+        mid = m.get("id", "")
+        # Skip embedding, moderation, and tts models
+        if any(skip in mid.lower() for skip in ["embed", "moderat", "tts", "whisper", "dall-e"]):
+            continue
+        # Prefer instruct/chat models
+        pricing = m.get("pricing", {})
+        prompt_price = float(pricing.get("prompt", "0") or "0")
+        is_free = prompt_price == 0
+        models.append({
+            "id": mid,
+            "name": m.get("name", mid),
+            "description": f"{'🆓 Free' if is_free else f'${prompt_price*1e6:.1f}/1M tokens'} | ctx:{m.get('context_length', '?')}",
+            "speed": "",
+            "quality": "",
+        })
+
+    # Sort: free first, then by context length desc
+    models.sort(key=lambda x: (not x["description"].startswith("🆓"), -int(x["description"].split("ctx:")[-1].split(")")[0].replace(",", "").replace("?", "0") if "ctx:" in x["description"] else 0)))
+    return models
+
+
+async def _fetch_groq_models() -> list[dict[str, Any]]:
+    """Fetch models from Groq API."""
+    import httpx
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return []
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    models = []
+    for m in data.get("data", []):
+        mid = m.get("id", "")
+        created = m.get("created", 0)
+        models.append({
+            "id": mid,
+            "name": mid,
+            "description": f"Groq hosted | {m.get('owned_by', 'groq')}",
+            "speed": "⚡",
+            "quality": "",
+        })
+    # Sort newest first
+    models.sort(key=lambda x: x["id"])
+    return models
+
+
+async def _fetch_together_models() -> list[dict[str, Any]]:
+    """Fetch models from Together API."""
+    import httpx
+    api_key = os.getenv("TOGETHER_API_KEY")
+    if not api_key:
+        return []
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://api.together.xyz/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    models = []
+    for m in data if isinstance(data, list) else data.get("data", []):
+        mid = m.get("id", "")
+        # Skip embedding and non-chat models
+        if any(skip in mid.lower() for skip in ["embed", "image", "tts", "moderation"]):
+            continue
+        pricing = m.get("pricing", {})
+        prompt_price = float(pricing.get("prompt", "0") or "0")
+        ctx = m.get("context_length", "?")
+        models.append({
+            "id": mid,
+            "name": m.get("display_name", mid.split("/")[-1]),
+            "description": f"{'🆓 Free' if prompt_price == 0 else f'${prompt_price*1e6:.1f}/1M tokens'} | ctx:{ctx}",
+            "speed": "",
+            "quality": "",
+        })
+    models.sort(key=lambda x: (not x["description"].startswith("🆓"), x["id"]))
+    return models
+
+
+async def _fetch_gemini_models() -> list[dict[str, Any]]:
+    """Fetch models from Google Gemini API."""
+    import httpx
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return []
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    models = []
+    for m in data.get("models", []):
+        name = m.get("name", "")
+        mid = name.replace("models/", "")
+        # Only include generateContent-capable models
+        methods = m.get("supportedGenerationMethods", [])
+        if "generateContent" not in methods:
+            continue
+        display = m.get("displayName", mid)
+        desc = m.get("description", "")[:80]
+        models.append({
+            "id": mid,
+            "name": display,
+            "description": desc or f"Google {mid}",
+            "speed": "",
+            "quality": "",
+        })
+    return models
+
+
+async def _fetch_custom_models() -> list[dict[str, Any]]:
+    """Fetch models from custom provider's /v1/models endpoint."""
+    import httpx
+    base_url = os.getenv("CUSTOM_BASE_URL")
+    api_key = os.getenv("CUSTOM_API_KEY", "none")
+    if not base_url:
+        return []
+    url = base_url.rstrip("/") + "/models"
+    headers = {}
+    if api_key and api_key.lower() != "none":
+        headers["Authorization"] = f"Bearer {api_key}"
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+
+    models = []
+    for m in data.get("data", []):
+        mid = m.get("id", m.get("name", ""))
+        models.append({
+            "id": mid,
+            "name": mid,
+            "description": "Custom model",
+            "speed": "",
+            "quality": "",
+        })
+    return models
+
+
+# ---------------------------------------------------------------------------
 # Provider resolution & client creation
 # ---------------------------------------------------------------------------
 
