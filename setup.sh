@@ -5,7 +5,7 @@
 #
 # Paste this single command into Termux to install everything:
 #
-#   bash <(curl -s https://raw.githubusercontent.com/YOUR_USER/self-evolving-agent/main/setup.sh)
+#   bash <(curl -s https://raw.githubusercontent.com/muhammadrafiq1899-dot/Privya-Self-Evolve-Ai-Agent/main/setup.sh)
 #
 # Or if you already cloned the repo:
 #
@@ -25,7 +25,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Repo config
-REPO_URL="https://github.com/YOUR_USER/self-evolving-agent.git"
+REPO_URL="https://github.com/muhammadrafiq1899-dot/Privya-Self-Evolve-Ai-Agent.git"
 INSTALL_DIR="$HOME/ai-agent"
 
 # ============================================================

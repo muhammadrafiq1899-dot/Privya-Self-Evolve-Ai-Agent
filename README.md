@@ -7,7 +7,7 @@ A complete, self-evolving AI agent optimized for **Termux on Android** with **8 
 **Paste this single command into Termux to install everything:**
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/YOUR_USER/self-evolving-agent/main/setup.sh)
+bash <(curl -s https://raw.githubusercontent.com/muhammadrafiq1899-dot/Privya-Self-Evolve-Ai-Agent/main/setup.sh)
 ```
 
 Or if you already have the repo:
@@ -75,7 +75,7 @@ self-evolving-agent/
 ### Option A: One-Command Install (Recommended)
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/YOUR_USER/self-evolving-agent/main/setup.sh)
+bash <(curl -s https://raw.githubusercontent.com/muhammadrafiq1899-dot/Privya-Self-Evolve-Ai-Agent/main/setup.sh)
 ```
 
 This will:
@@ -97,7 +97,7 @@ pkg install python git
 
 # Clone and setup
 cd ~
-git clone <your-repo> self-evolving-agent
+git clone https://github.com/muhammadrafiq1899-dot/Privya-Self-Evolve-Ai-Agent.git ai-agent
 cd self-evolving-agent
 
 # Install dependencies
