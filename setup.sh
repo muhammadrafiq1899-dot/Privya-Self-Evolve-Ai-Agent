@@ -184,20 +184,28 @@ step_4_install_python_deps() {
         echo "  💡 You will see progress below:"
         echo ""
         
-        # Install with visible progress - no pipe, direct output
+        # Install with visible progress
         python -m pip install -r requirements.txt --no-cache-dir --progress-bar on
         
-        # Check if install succeeded
         if [ $? -eq 0 ]; then
-            success "Python dependencies installed"
+            success "Core packages installed"
         else
-            warning "Some packages may have failed"
-            echo "  Try running manually: pip install -r requirements.txt"
+            warning "Some core packages may have failed"
         fi
     else
         error "requirements.txt not found!"
         echo "  Please make sure you're in the correct directory."
         exit 1
+    fi
+    
+    # Try to install numpy (optional - may fail on Termux)
+    echo ""
+    echo "  📦 Trying to install numpy (optional for better semantic search)..."
+    if python -m pip install numpy --no-cache-dir -q 2>/dev/null; then
+        success "numpy installed (better semantic search enabled)"
+    else
+        info "numpy skipped (using TF-IDF fallback for semantic search)"
+        echo "  This is OK - semantic search will use a lighter algorithm."
     fi
 }
 

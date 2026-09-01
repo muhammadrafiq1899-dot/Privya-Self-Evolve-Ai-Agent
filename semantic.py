@@ -18,7 +18,13 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 
-import numpy as np
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    np = None
+    HAS_NUMPY = False
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -157,10 +163,10 @@ class VectorStore:
         """Convert vector to binary blob."""
         return struct.pack(f'{len(vector)}f', *vector)
 
-    def _blob_to_vector(self, blob: bytes) -> np.ndarray:
-        """Convert binary blob to numpy array."""
+    def _blob_to_vector(self, blob: bytes) -> list[float]:
+        """Convert binary blob to vector list."""
         n = len(blob) // 4
-        return np.array(struct.unpack(f'{n}f', blob), dtype=np.float32)
+        return list(struct.unpack(f'{n}f', blob))
 
     def add(self, text: str, metadata: dict[str, Any] | None = None) -> int:
         """Add a text entry with its embedding vector."""
@@ -202,7 +208,7 @@ class VectorStore:
 
         Returns entries sorted by similarity score.
         """
-        query_vec = np.array(get_embedding(query), dtype=np.float32)
+        query_vec = get_embedding(query)
 
         conn = sqlite3.connect(str(self.db_path))
         rows = conn.execute("SELECT id, text, metadata, vector FROM vectors").fetchall()
@@ -212,13 +218,14 @@ class VectorStore:
             return []
 
         results = []
+        query_norm = math.sqrt(sum(x * x for x in query_vec))
+
         for row_id, text, meta_json, blob in rows:
             vec = self._blob_to_vector(blob)
-            # Cosine similarity
-            dot = np.dot(query_vec, vec)
-            norm_q = np.linalg.norm(query_vec)
-            norm_v = np.linalg.norm(vec)
-            score = float(dot / (norm_q * norm_v)) if (norm_q * norm_v) > 0 else 0.0
+            # Cosine similarity using pure Python
+            dot = sum(a * b for a, b in zip(query_vec, vec))
+            vec_norm = math.sqrt(sum(x * x for x in vec))
+            score = dot / (query_norm * vec_norm) if (query_norm * vec_norm) > 0 else 0.0
 
             if score >= threshold:
                 metadata = json.loads(meta_json) if meta_json else {}
