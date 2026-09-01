@@ -512,6 +512,13 @@ Agent: Cron job "consolidation" added: 0 9 * * 1 → consolidator.py
 **Embeddings slow**
 → Install sentence-transformers: `pip install sentence-transformers`
 
+**Build errors (Rust/jiter/numpy)**
+→ The installer handles this automatically. If you see errors:
+```bash
+pkg install rust binutils
+pip install -r requirements.txt
+```
+
 ## 📊 Data Storage
 
 ```

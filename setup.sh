@@ -110,8 +110,8 @@ step_2_install_system_deps() {
     # Essential packages
     PACKAGES="python git curl wget"
     
-    # Build dependencies for Python packages
-    PACKAGES="$PACKAGES build-essential" 2>/dev/null || true
+    # Build dependencies for Python packages (including Rust for jiter/openai)
+    PACKAGES="$PACKAGES build-essential rust binutils" 2>/dev/null || true
     PACKAGES="$PACKAGES libxml2 libxslt" 2>/dev/null || true
     
     # Termux:API for hardware features
@@ -127,6 +127,30 @@ step_2_install_system_deps() {
     done
     
     success "System dependencies installed"
+}
+
+step_2b_configure_rust() {
+    # Configure Rust for Termux if installed
+    if command -v rustc &>/dev/null; then
+        echo "  🦀 Configuring Rust for Termux..."
+        
+        # Set up Rust environment
+        export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+        export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+        
+        # Create cargo env if it doesn't exist
+        if [ ! -f "$CARGO_HOME/env" ]; then
+            mkdir -p "$CARGO_HOME"
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' > "$CARGO_HOME/env"
+        fi
+        
+        # Add to PATH for this session
+        export PATH="$CARGO_HOME/bin:$PATH"
+        
+        success "Rust configured"
+    else
+        info "Rust not installed (optional)"
+    fi
 }
 
 step_3_clone_repo() {
@@ -184,13 +208,21 @@ step_4_install_python_deps() {
         echo "  💡 You will see progress below:"
         echo ""
         
-        # Install with visible progress
-        python -m pip install -r requirements.txt --no-cache-dir --progress-bar on
+        # First try with binary-only to avoid building from source
+        echo "  Trying to install from pre-built packages..."
+        if python -m pip install -r requirements.txt --no-cache-dir --only-binary :all: --progress-bar on 2>/dev/null; then
+            success "Core packages installed (pre-built)"
+        else
+            echo "  Some packages need to be built from source, this may take longer..."
+            # Fall back to building from source
+            python -m pip install -r requirements.txt --no-cache-dir --progress-bar on
+        fi
         
         if [ $? -eq 0 ]; then
             success "Core packages installed"
         else
             warning "Some core packages may have failed"
+            echo "  Try running: pip install -r requirements.txt"
         fi
     else
         error "requirements.txt not found!"
@@ -422,6 +454,7 @@ main() {
     
     step_1_update_termux
     step_2_install_system_deps
+    step_2b_configure_rust
     step_3_clone_repo
     step_4_install_python_deps
     step_5_install_optional_deps
