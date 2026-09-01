@@ -110,6 +110,10 @@ step_2_install_system_deps() {
     # Essential packages
     PACKAGES="python git curl wget"
     
+    # Build dependencies for Python packages
+    PACKAGES="$PACKAGES build-essential" 2>/dev/null || true
+    PACKAGES="$PACKAGES libxml2 libxslt" 2>/dev/null || true
+    
     # Termux:API for hardware features
     PACKAGES="$PACKAGES termux-api" 2>/dev/null || true
     
@@ -117,6 +121,7 @@ step_2_install_system_deps() {
         if command -v "$pkg" &>/dev/null || [ -d "/data/data/com.termux/files/usr/bin/$pkg" ]; then
             info "$pkg already installed"
         else
+            echo "    📦 Installing $pkg..."
             pkg install -y -qq "$pkg" 2>/dev/null || apt install -y -qq "$pkg" 2>/dev/null || true
         fi
     done
@@ -168,12 +173,27 @@ step_4_install_python_deps() {
     step "4" "Installing Python packages..."
     
     # Upgrade pip first
-    python -m pip install --upgrade pip -q 2>/dev/null || true
+    echo "  📦 Upgrading pip..."
+    python -m pip install --upgrade pip --no-cache-dir -q 2>/dev/null || true
     
     # Install requirements
     if [ -f "requirements.txt" ]; then
-        python -m pip install -r requirements.txt -q
-        success "Python dependencies installed"
+        echo ""
+        echo "  📦 Installing core packages..."
+        echo "  ⏳ This may take 2-5 minutes depending on your connection."
+        echo "  💡 You will see progress below:"
+        echo ""
+        
+        # Install with visible progress - no pipe, direct output
+        python -m pip install -r requirements.txt --no-cache-dir --progress-bar on
+        
+        # Check if install succeeded
+        if [ $? -eq 0 ]; then
+            success "Python dependencies installed"
+        else
+            warning "Some packages may have failed"
+            echo "  Try running manually: pip install -r requirements.txt"
+        fi
     else
         error "requirements.txt not found!"
         echo "  Please make sure you're in the correct directory."
