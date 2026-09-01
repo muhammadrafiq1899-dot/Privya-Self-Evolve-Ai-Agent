@@ -264,47 +264,283 @@ step_5_install_optional_deps() {
         warning "Could not install edge-tts"
 }
 
-step_6_setup_config() {
-    step "6" "Setting up configuration..."
+step_6_configure_providers() {
+    step "6" "Configuring LLM providers..."
     
     # Create .env from example if it doesn't exist
     if [ ! -f ".env" ]; then
-        if [ -f ".env.example" ]; then
-            cp .env.example .env
-            success "Created .env from .env.example"
-        else
-            # Create .env manually
-            cat > .env << 'ENVEOF'
+        cat > .env << 'ENVEOF'
 # === LLM Providers (at least one required) ===
-# Get free API keys from:
-#   Groq: https://console.groq.com (recommended - fastest)
-#   Together: https://api.together.xyz
-#   OpenRouter: https://openrouter.ai
-#   Gemini: https://aistudio.google.com
-
 GROQ_API_KEY=
 OPENROUTER_API_KEY=
 GEMINI_API_KEY=
 TOGETHER_API_KEY=
 
+# === Custom Provider (optional) ===
+CUSTOM_API_KEY=
+CUSTOM_BASE_URL=
+CUSTOM_MODEL=
+
 # === Telegram (optional) ===
-# Create bot: https://t.me/BotFather
 TELEGRAM_BOT_TOKEN=
 
 # === Obsidian REST API (optional) ===
 OBSIDIAN_API_KEY=
 OBSIDIAN_URL=http://127.0.0.1:27123
 OBSIDIAN_VAULT=~/ai-agent/vault
+
+# === Provider Selection (set during setup) ===
+DEFAULT_PROVIDER=
+DEFAULT_MODEL=
 ENVEOF
-            success "Created .env configuration file"
-        fi
-    else
-        info ".env already exists, skipping"
+        success "Created .env configuration file"
     fi
     
     # Create data directory
     mkdir -p "$HOME/.ai-agent"
     success "Data directory created at ~/.ai-agent"
+    
+    echo ""
+    echo -e "${BOLD}Choose your LLM provider:${NC}"
+    echo ""
+    echo -e "  ${GREEN}1)${NC} ${CYAN}Groq${NC}          – Fastest inference, free tier ⭐"
+    echo -e "     ${GREEN}2)${NC} ${CYAN}OpenRouter${NC}    – 100+ models, pay-per-use"
+    echo -e "     ${GREEN}3)${NC} ${CYAN}Google Gemini${NC} – Free tier, great quality"
+    echo -e "     ${GREEN}4)${NC} ${CYAN}Together AI${NC}   – Open-source models, cheap"
+    echo -e "     ${GREEN}5)${NC} ${CYAN}Custom${NC}        – Any OpenAI-compatible API (vLLM, Ollama, LM Studio…)"
+    echo -e "     ${GREEN}6)${NC} ${CYAN}Skip${NC}           – Configure later in .env"
+    echo ""
+    read -p "  Enter choice [1-6]: " provider_choice
+    
+    case $provider_choice in
+        1) _configure_groq ;;
+        2) _configure_openrouter ;;
+        3) _configure_gemini ;;
+        4) _configure_together ;;
+        5) _configure_custom ;;
+        6) info "Skipped. Add API key to .env manually." ;;
+        *) warning "Invalid choice, skipping." ;;
+    esac
+}
+
+_configure_groq() {
+    echo ""
+    echo -e "${CYAN}━━━ Groq Setup ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  Free API key: ${BLUE}https://console.groq.com${NC}"
+    echo -e "  Sign up → API Keys → Create → Copy key"
+    echo ""
+    read -p "  Paste your Groq API key (or Enter to skip): " api_key
+    
+    if [ -n "$api_key" ]; then
+        # Save key
+        sed -i "s|^GROQ_API_KEY=.*|GROQ_API_KEY=$api_key|" .env
+        
+        # Choose model
+        echo ""
+        echo -e "  ${BOLD}Choose default model:${NC}"
+        echo -e "    ${GREEN}1)${NC} llama-3.3-70b-versatile  ${YELLOW}(recommended)${NC}"
+        echo -e "    ${GREEN}2)${NC} llama-3.1-8b-instant      (fastest)"
+        echo -e "    ${GREEN}3)${NC} mixtral-8x7b-32768        (long context)"
+        echo -e "    ${GREEN}4)${NC} gemma2-9b-it              (efficient)"
+        echo ""
+        read -p "  Enter choice [1-4]: " model_choice
+        
+        local model="llama-3.3-70b-versatile"
+        case $model_choice in
+            1) model="llama-3.3-70b-versatile" ;;
+            2) model="llama-3.1-8b-instant" ;;
+            3) model="mixtral-8x7b-32768" ;;
+            4) model="gemma2-9b-it" ;;
+        esac
+        
+        sed -i "s|^DEFAULT_PROVIDER=.*|DEFAULT_PROVIDER=groq|" .env
+        sed -i "s|^DEFAULT_MODEL=.*|DEFAULT_MODEL=$model|" .env
+        
+        success "Groq configured: $model"
+        _test_llm_connection "groq" "$model"
+    else
+        info "Skipped Groq setup"
+    fi
+}
+
+_configure_openrouter() {
+    echo ""
+    echo -e "${CYAN}━━━ OpenRouter Setup ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  API key: ${BLUE}https://openrouter.ai/keys${NC}"
+    echo -e "  Sign up → Keys → Create Key → Copy"
+    echo ""
+    read -p "  Paste your OpenRouter API key (or Enter to skip): " api_key
+    
+    if [ -n "$api_key" ]; then
+        sed -i "s|^OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=$api_key|" .env
+        
+        echo ""
+        echo -e "  ${BOLD}Choose default model:${NC}"
+        echo -e "    ${GREEN}1)${NC} meta-llama/llama-3.3-70b-instruct   ${YELLOW}(free, recommended)${NC}"
+        echo -e "    ${GREEN}2)${NC} anthropic/claude-3.5-sonnet          (best reasoning)"
+        echo -e "    ${GREEN}3)${NC} openai/gpt-4o                        (OpenAI flagship)"
+        echo -e "    ${GREEN}4)${NC} google/gemini-2.0-flash-001          (fast)"
+        echo -e "    ${GREEN}5)${NC} deepseek/deepseek-chat               (coding)"
+        echo ""
+        read -p "  Enter choice [1-5]: " model_choice
+        
+        local model="meta-llama/llama-3.3-70b-instruct"
+        case $model_choice in
+            1) model="meta-llama/llama-3.3-70b-instruct" ;;
+            2) model="anthropic/claude-3.5-sonnet" ;;
+            3) model="openai/gpt-4o" ;;
+            4) model="google/gemini-2.0-flash-001" ;;
+            5) model="deepseek/deepseek-chat" ;;
+        esac
+        
+        sed -i "s|^DEFAULT_PROVIDER=.*|DEFAULT_PROVIDER=openrouter|" .env
+        sed -i "s|^DEFAULT_MODEL=.*|DEFAULT_MODEL=$model|" .env
+        
+        success "OpenRouter configured: $model"
+        _test_llm_connection "openrouter" "$model"
+    else
+        info "Skipped OpenRouter setup"
+    fi
+}
+
+_configure_gemini() {
+    echo ""
+    echo -e "${CYAN}━━━ Google Gemini Setup ━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  Free API key: ${BLUE}https://aistudio.google.com${NC}"
+    echo -e "  Get API key → Create → Copy"
+    echo ""
+    read -p "  Paste your Gemini API key (or Enter to skip): " api_key
+    
+    if [ -n "$api_key" ]; then
+        sed -i "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=$api_key|" .env
+        
+        echo ""
+        echo -e "  ${BOLD}Choose default model:${NC}"
+        echo -e "    ${GREEN}1)${NC} gemini-2.0-flash                       ${YELLOW}(recommended)${NC}"
+        echo -e "    ${GREEN}2)${NC} gemini-2.5-flash-preview-05-20         (latest thinking)"
+        echo -e "    ${GREEN}3)${NC} gemini-1.5-pro                         (best quality)"
+        echo -e "    ${GREEN}4)${NC} gemini-1.5-flash                       (balanced)"
+        echo ""
+        read -p "  Enter choice [1-4]: " model_choice
+        
+        local model="gemini-2.0-flash"
+        case $model_choice in
+            1) model="gemini-2.0-flash" ;;
+            2) model="gemini-2.5-flash-preview-05-20" ;;
+            3) model="gemini-1.5-pro" ;;
+            4) model="gemini-1.5-flash" ;;
+        esac
+        
+        sed -i "s|^DEFAULT_PROVIDER=.*|DEFAULT_PROVIDER=gemini|" .env
+        sed -i "s|^DEFAULT_MODEL=.*|DEFAULT_MODEL=$model|" .env
+        
+        success "Gemini configured: $model"
+        _test_llm_connection "gemini" "$model"
+    else
+        info "Skipped Gemini setup"
+    fi
+}
+
+_configure_together() {
+    echo ""
+    echo -e "${CYAN}━━━ Together AI Setup ━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  API key: ${BLUE}https://api.together.xyz${NC}"
+    echo -e "  Sign up → Settings → API Keys → Create → Copy"
+    echo ""
+    read -p "  Paste your Together API key (or Enter to skip): " api_key
+    
+    if [ -n "$api_key" ]; then
+        sed -i "s|^TOGETHER_API_KEY=.*|TOGETHER_API_KEY=$api_key|" .env
+        
+        echo ""
+        echo -e "  ${BOLD}Choose default model:${NC}"
+        echo -e "    ${GREEN}1)${NC} meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo  ${YELLOW}(recommended)${NC}"
+        echo -e "    ${GREEN}2)${NC} meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo  (largest)"
+        echo -e "    ${GREEN}3)${NC} deepseek-ai/DeepSeek-V3                         (coding)"
+        echo -e "    ${GREEN}4)${NC} Qwen/Qwen2.5-72B-Instruct-Turbo                 (multilingual)"
+        echo ""
+        read -p "  Enter choice [1-4]: " model_choice
+        
+        local model="meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo"
+        case $model_choice in
+            1) model="meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo" ;;
+            2) model="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo" ;;
+            3) model="deepseek-ai/DeepSeek-V3" ;;
+            4) model="Qwen/Qwen2.5-72B-Instruct-Turbo" ;;
+        esac
+        
+        sed -i "s|^DEFAULT_PROVIDER=.*|DEFAULT_PROVIDER=together|" .env
+        sed -i "s|^DEFAULT_MODEL=.*|DEFAULT_MODEL=$model|" .env
+        
+        success "Together configured: $model"
+        _test_llm_connection "together" "$model"
+    else
+        info "Skipped Together setup"
+    fi
+}
+
+_configure_custom() {
+    echo ""
+    echo -e "${CYAN}━━━ Custom Provider Setup ━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  Works with any OpenAI-compatible API:"
+    echo -e "    • vLLM, Ollama, LM Studio, LocalAI"
+    echo -e "    • OpenAI API, Azure OpenAI"
+    echo -e "    • Any proxy that exposes /v1/chat/completions"
+    echo ""
+    
+    read -p "  API Base URL (e.g. http://localhost:8000/v1): " base_url
+    if [ -z "$base_url" ]; then
+        info "Skipped Custom setup"
+        return
+    fi
+    
+    read -p "  API Key (or 'none' for local): " api_key
+    api_key="${api_key:-none}"
+    
+    read -p "  Model name (e.g. meta-llama/Llama-3-8B-Instruct): " model
+    if [ -z "$model" ]; then
+        echo "  ⚠️  Model name required"
+        info "Skipped Custom setup"
+        return
+    fi
+    
+    # Save to .env
+    sed -i "s|^CUSTOM_API_KEY=.*|CUSTOM_API_KEY=$api_key|" .env
+    sed -i "s|^CUSTOM_BASE_URL=.*|CUSTOM_BASE_URL=$base_url|" .env
+    sed -i "s|^CUSTOM_MODEL=.*|CUSTOM_MODEL=$model|" .env
+    sed -i "s|^DEFAULT_PROVIDER=.*|DEFAULT_PROVIDER=custom|" .env
+    sed -i "s|^DEFAULT_MODEL=.*|DEFAULT_MODEL=$model|" .env
+    
+    success "Custom provider configured: $base_url / $model"
+    _test_llm_connection "custom" "$model"
+}
+
+_test_llm_connection() {
+    local provider="$1"
+    local model="$2"
+    echo ""
+    echo "  🧪 Testing connection..."
+    
+    python -c "
+import asyncio, os, sys
+os.chdir('$(pwd)')
+sys.path.insert(0, '.')
+from llm import set_session_provider, chat
+
+async def test():
+    result = set_session_provider('$provider', '$model')
+    if 'error' in result:
+        print(f'    ❌ {result["error"]}')
+        return
+    resp = await chat([{'role': 'user', 'content': 'Say hello in one word'}], temperature=0.1, max_tokens=10)
+    content = resp.get('content', '')
+    if content:
+        print(f'    ✅ Connection successful! Response: {content[:50]}')
+    else:
+        print('    ⚠️  Connection OK but empty response')
+
+asyncio.run(test())
+" 2>/dev/null && success "LLM connection verified" || warning "Could not test (check .env manually)"
 }
 
 step_7_verify_installation() {
@@ -405,8 +641,8 @@ print_summary() {
     echo ""
     echo -e "${BOLD}🚀 Quick Start:${NC}"
     echo ""
-    echo -e "  ${CYAN}# Edit .env to add your API key:${NC}"
-    echo -e "  nano ~/ai-agent/.env"
+    echo -e "  ${CYAN}# Launch the TUI:${NC}"
+    echo -e "  python ~/ai-agent/agent.py"
     echo ""
     echo -e "  ${CYAN}# Launch the TUI:${NC}"
     echo -e "  python ~/ai-agent/agent.py"
@@ -448,6 +684,85 @@ print_summary() {
 # Main
 # ============================================================
 
+# ============================================================
+# Update existing installation
+# ============================================================
+
+update() {
+    print_header
+    
+    echo -e "${BOLD}🔄 Updating AI Agent...${NC}"
+    echo ""
+    
+    # Check if installed
+    if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/requirements.txt" ]; then
+        error "AI Agent not installed at $INSTALL_DIR"
+        echo "  Run the full installer first: bash setup.sh"
+        exit 1
+    fi
+    
+    cd "$INSTALL_DIR"
+    
+    # Step 1: Pull latest code
+    step "1" "Pulling latest code..."
+    if git pull origin main 2>/dev/null || git pull 2>/dev/null; then
+        success "Code updated"
+    else
+        warning "Could not pull (using local version)"
+    fi
+    
+    # Step 2: Update system packages
+    step "2" "Updating system packages..."
+    pkg update -y -qq 2>/dev/null || apt update -y -qq
+    success "System packages updated"
+    
+    # Step 3: Update Python packages
+    step "3" "Updating Python packages..."
+    python -m pip install --upgrade pip --no-cache-dir -q 2>/dev/null || true
+    
+    if python -m pip install -r requirements.txt --no-cache-dir --only-binary :all: --progress-bar on 2>/dev/null; then
+        success "Python packages updated (pre-built)"
+    else
+        python -m pip install -r requirements.txt --no-cache-dir --progress-bar on
+        success "Python packages updated"
+    fi
+    
+    # Step 4: Optional packages
+    step "4" "Updating optional features..."
+    python -m pip install edge-tts -q 2>/dev/null && \
+        success "edge-tts updated" || true
+    python -m pip install numpy -q 2>/dev/null && \
+        success "numpy updated" || info "numpy skipped"
+    
+    # Step 5: Verify
+    step "5" "Verifying update..."
+    python -c "import openai; import dotenv; import rich" 2>/dev/null && \
+        success "Core packages verified" || \
+        error "Some packages missing"
+    
+    python -c "
+from llm import get_client
+try:
+    _, provider, model = get_client()
+    print(f'    LLM: {provider}/{model}')
+except Exception as e:
+    print(f'    ⚠️  No LLM configured: {e}')
+" 2>/dev/null || true
+    
+    echo ""
+    echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}${BOLD}║           ✅ Update Complete!                           ║${NC}"
+    echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  ${CYAN}python ~/ai-agent/agent.py${NC}  – Launch TUI"
+    echo -e "  ${CYAN}ai-agent${NC}                    – Use shortcut"
+    echo ""
+}
+
+# ============================================================
+# Main
+# ============================================================
+
 main() {
     print_header
     preflight_check
@@ -458,12 +773,28 @@ main() {
     step_3_clone_repo
     step_4_install_python_deps
     step_5_install_optional_deps
-    step_6_setup_config
+    step_6_configure_providers
     step_7_verify_installation
     step_8_create_shortcuts
     
     print_summary
 }
 
-# Run installer
-main
+# ============================================================
+# Entry point
+# ============================================================
+
+case "${1:-}" in
+    update|up|-u)
+        update
+        ;;
+    help|--help|-h)
+        echo "Usage:"
+        echo "  bash setup.sh          # Full installation"
+        echo "  bash setup.sh update   # Update existing installation"
+        echo "  bash setup.sh help     # Show this help"
+        ;;
+    *)
+        main
+        ;;
+esac

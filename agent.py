@@ -43,7 +43,7 @@ from textual.widgets import (
 from textual.reactive import reactive
 from rich.text import Text
 
-from llm import chat_stream, chat, get_client
+from llm import chat_stream, chat, get_client, set_session_provider, get_session_info, list_providers, get_models_for_provider
 from memory import short_term, long_term, procedural, MemoryEntry, Procedure
 from tools import get_tools, execute_tool
 from nl_cron import nl_to_cron, add_cron_job, list_cron_jobs
@@ -252,6 +252,7 @@ class AgentTUI(App):
         welcome.append(f"Features: {' | '.join(features)}\n", style="dim")
 
         welcome.append("\nType your message below. Commands:\n", style="dim")
+        welcome.append("  /model        – Switch provider & model\n")
         welcome.append("  /memory       – Show long-term memories\n")
         welcome.append("  /procedures   – Show learned procedures\n")
         welcome.append("  /cron         – Show scheduled jobs\n")
@@ -310,6 +311,7 @@ class AgentTUI(App):
 
         if command == "/help":
             help_text = Text("📋 Available Commands:\n", style="bold yellow")
+            help_text.append("  /model          – Switch provider & model\n")
             help_text.append("  /memory         – View long-term memories\n")
             help_text.append("  /procedures     – View learned procedures\n")
             help_text.append("  /cron           – View scheduled jobs\n")
@@ -323,6 +325,9 @@ class AgentTUI(App):
             help_text.append("  /help           – This help\n")
             help_text.append("\n💡 Just type naturally to chat with the agent!\n", style="dim")
             log.write(help_text)
+
+        elif command == "/model":
+            await self._handle_model_command(parts[1] if len(parts) > 1 else "", log)
 
         elif command == "/memory":
             memories = long_term.recent(10)
@@ -385,6 +390,102 @@ class AgentTUI(App):
 
         else:
             log.write(Text(f"  Unknown command: {command}", style="red"))
+
+    async def _handle_model_command(self, args: str, log: RichLog) -> None:
+        """Handle /model command for provider/model switching.
+
+        Usage:
+          /model              – Show current provider and available providers
+          /model list         – List all providers with models
+          /model groq         – Switch to Groq (default model)
+          /model groq mixtral – Switch to Groq with specific model
+          /model reset        – Reset to auto-detect from .env
+        """
+        parts = args.strip().split()
+
+        if not parts or parts[0] == "status":
+            # Show current status
+            info = get_session_info()
+            providers = list_providers()
+
+            status_text = Text("🤖 Provider & Model Status\n", style="bold cyan")
+
+            if info["provider"]:
+                status_text.append(f"  Active: {info['display']} / {info['model']}\n", style="bold green")
+                status_text.append("  (Use /model reset to go back to auto-detect)\n", style="dim")
+            else:
+                try:
+                    _, prov, model = get_client()
+                    status_text.append(f"  Auto-detected: {prov}/{model}\n", style="bold green")
+                except Exception:
+                    status_text.append("  No provider configured\n", style="yellow")
+
+            status_text.append("\nAvailable Providers:\n", style="bold yellow")
+            for p in providers:
+                icon = "✅" if p["available"] else "❌"
+                active = " ← ACTIVE" if p["session_active"] else ""
+                status_text.append(f"  {icon} {p['id']:<12} {p['display_name']}{active}\n", style="dim")
+                if p["available"]:
+                    status_text.append(f"     Default: {p['default_model']}\n", style="dim")
+                    status_text.append(f"     Key: {p['key_env']}\n", style="dim")
+
+            status_text.append("\nUsage:\n", style="bold yellow")
+            status_text.append("  /model list              – Show all providers & models\n", style="dim")
+            status_text.append("  /model groq              – Switch provider (default model)\n", style="dim")
+            status_text.append("  /model groq mixtral-8x7b – Switch provider + model\n", style="dim")
+            status_text.append("  /model reset             – Reset to auto-detect\n", style="dim")
+            log.write(status_text)
+
+        elif parts[0] == "list":
+            # Detailed model listing
+            providers = list_providers()
+            list_text = Text("📋 All Providers & Models\n", style="bold cyan")
+
+            for p in providers:
+                icon = "✅" if p["available"] else "❌"
+                active = " ← ACTIVE" if p["session_active"] else ""
+                list_text.append(f"\n{icon} {p['display_name']}{active}\n", style="bold")
+                list_text.append(f"   {p['description']}\n", style="dim")
+
+                if p["available"]:
+                    for m in p["models"]:
+                        list_text.append(f"   • {m['id']}\n", style="dim")
+                        list_text.append(f"     {m['name']} – {m['description']}  {m['speed']} {m['quality']}\n", style="dim")
+                else:
+                    list_text.append(f"   (Add {p['key_env']} to .env to enable)\n", style="dim")
+
+            log.write(list_text)
+
+        elif parts[0] == "reset":
+            result = set_session_provider(None)
+            log.write(Text(f"  🔄 {result['message']}", style="dim"))
+            self._update_provider_display()
+
+        else:
+            # Switch provider (and optional model)
+            provider = parts[0]
+            model = parts[1] if len(parts) > 1 else None
+
+            result = set_session_provider(provider, model)
+
+            if "error" in result:
+                log.write(Text(f"  ❌ {result['error']}", style="red"))
+            else:
+                log.write(Text(f"  ✅ {result['message']}", style="bold green"))
+                self._update_provider_display()
+
+    def _update_provider_display(self) -> None:
+        """Update the provider display after a switch."""
+        try:
+            info = get_session_info()
+            if info["provider"]:
+                self.current_provider = f"{info['display']} / {info['model']}"
+            else:
+                _, prov, model = get_client()
+                self.current_provider = f"{prov}/{model}"
+        except Exception:
+            self.current_provider = "no provider"
+        self._update_status()
 
     # -----------------------------------------------------------------------
     # Core agent loop (tool calling + features)
