@@ -127,8 +127,8 @@ step_2_install_system_deps() {
 step_3_clone_repo() {
     step "3" "Downloading AI Agent..."
     
-    if [ -d "$INSTALL_DIR" ]; then
-        info "Directory $INSTALL_DIR already exists"
+    if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/requirements.txt" ]; then
+        info "Directory $INSTALL_DIR already exists with files"
         echo "  Update existing installation? [Y/n]"
         read -r response
         if [[ ! "$response" =~ ^[Nn]$ ]]; then
@@ -137,13 +137,30 @@ step_3_clone_repo() {
             success "Updated existing installation"
         fi
     else
-        git clone "$REPO_URL" "$INSTALL_DIR" 2>/dev/null || {
-            warning "Could not clone from GitHub"
-            echo "  If you already have the files, copy them to $INSTALL_DIR"
-            mkdir -p "$INSTALL_DIR"
-        }
-        cd "$INSTALL_DIR"
-        success "Repository cloned to $INSTALL_DIR"
+        # Remove empty directory if it exists
+        if [ -d "$INSTALL_DIR" ]; then
+            rmdir "$INSTALL_DIR" 2>/dev/null || rm -rf "$INSTALL_DIR" 2>/dev/null || true
+        fi
+        
+        echo "  Cloning from: $REPO_URL"
+        if git clone "$REPO_URL" "$INSTALL_DIR"; then
+            cd "$INSTALL_DIR"
+            success "Repository cloned to $INSTALL_DIR"
+        else
+            error "Failed to clone repository!"
+            echo ""
+            echo "  Possible causes:"
+            echo "    - No internet connection"
+            echo "    - Repository is private"
+            echo "    - GitHub is unreachable"
+            echo ""
+            echo "  Manual install:"
+            echo "    1. Download from: $REPO_URL"
+            echo "    2. Extract to: $INSTALL_DIR"
+            echo "    3. Run: cd $INSTALL_DIR && bash setup.sh"
+            echo ""
+            exit 1
+        fi
     fi
 }
 
