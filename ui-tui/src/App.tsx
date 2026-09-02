@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
-import { sendMessage, getStats, getMemories, getCron, getEvents, getSnapshots, healthCheck, type ChatResponse, type Stats } from './api.js';
 
-// ── Purple theme colors ──
+// ── Green theme colors ──
 const C = {
-  bg: '#0d0014',
-  border: '#6a0dad',
-  accent: '#9b30ff',
-  bright: '#e0b0ff',
-  mid: '#c080ff',
-  dim: '#7b2fa0',
-  dark: '#1a0030',
-  green: '#7bfa00',
-  yellow: '#ffaa00',
+  bg: '#000000',
+  border: '#00cc00',
+  accent: '#00ff00',
+  bright: '#ffffff',
+  mid: '#00dd00',
+  dim: '#008800',
+  dark: '#001a00',
+  green: '#00ff00',
+  yellow: '#ffff00',
   red: '#ff4040',
   white: '#ffffff',
 };
@@ -46,104 +45,95 @@ interface Message {
   duration?: number;
 }
 
-interface AppState {
-  messages: Message[];
-  input: string;
-  loading: boolean;
-  connected: boolean;
-  stats: Stats | null;
-  showModelPicker: boolean;
-  showHelp: boolean;
-  modelNumber: string;
-  autocompleteIndex: number;
-  autocompleteVisible: boolean;
-  autocompleteMatches: [string, string][];
-}
-
 // ── Main App ──
 export default function App() {
   const { exit } = useApp();
-  const [state, setState] = useState<AppState>({
-    messages: [],
-    input: '',
-    loading: false,
-    connected: false,
-    stats: null,
-    showModelPicker: false,
-    showHelp: false,
-    modelNumber: '',
-    autocompleteIndex: 0,
-    autocompleteVisible: false,
-    autocompleteMatches: [],
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [autocompleteIndex, setAutocompleteIndex] = useState(0);
+  const [autocompleteVisible, setAutocompleteVisible] = useState(false);
+  const [autocompleteMatches, setAutocompleteMatches] = useState<[string, string][]>([]);
+  const [stats, setStats] = useState<any>(null);
 
-  const scrollRef = useRef(0);
+  const API = 'http://127.0.0.1:8000';
 
   // Health check on mount
   useEffect(() => {
-    healthCheck().then(ok => {
-      setState(s => ({ ...s, connected: ok }));
-      if (ok) loadStats();
-    });
-    // Add welcome message
-    setState(s => ({
-      ...s,
-      messages: [{
-        role: 'system',
-        content: `✦ PRIVYA – AI Agent Framework\nv1.0.0 (2026.09.02)\n\nType a message or /help for commands.\n/model to pick a model interactively.`,
-        timestamp: new Date(),
-      }],
-    }));
+    fetch(`${API}/health`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) {
+          setConnected(true);
+          fetch(`${API}/api/stats`).then(r => r.json()).then(setStats).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    setMessages([{
+      role: 'system',
+      content: `✦ PRIVYA – AI Agent Framework\nv1.0.0 (2026.09.02)\n\nType a message or /help for commands.\n/model to pick a model interactively.`,
+      timestamp: new Date(),
+    }]);
   }, []);
 
-  const loadStats = async () => {
-    try {
-      const stats = await getStats();
-      setState(s => ({ ...s, stats }));
-    } catch {}
-  };
+  // ── Autocomplete ──
+  useEffect(() => {
+    if (input.startsWith('/') && input.length > 0) {
+      const matches = COMMANDS.filter(([cmd]) => cmd.startsWith(input.toLowerCase()));
+      setAutocompleteVisible(matches.length > 0 && matches.length < COMMANDS.length);
+      setAutocompleteMatches(matches);
+      setAutocompleteIndex(0);
+    } else {
+      setAutocompleteVisible(false);
+    }
+  }, [input]);
 
-  // ── Handle input ──
-  const handleSubmit = async (value: string) => {
+  // ── Add message ──
+  const addMessage = useCallback((role: Message['role'], content: string, extra?: Partial<Message>) => {
+    setMessages(prev => [...prev, { role, content, timestamp: new Date(), ...extra }]);
+  }, []);
+
+  // ── Handle submit ──
+  const handleSubmit = useCallback(async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+    setInput('');
+    setAutocompleteVisible(false);
 
-    setState(s => ({ ...s, input: '', autocompleteVisible: false }));
-
-    // Add user message
-    const userMsg: Message = { role: 'user', content: trimmed, timestamp: new Date() };
-    setState(s => ({ ...s, messages: [...s.messages, userMsg] }));
+    addMessage('user', trimmed);
 
     if (trimmed.startsWith('/')) {
       await handleCommand(trimmed);
     } else {
       await handleChat(trimmed);
     }
-  };
+  }, []);
 
-  // ── Handle slash commands ──
+  // ── Handle commands ──
   const handleCommand = async (cmd: string) => {
     const parts = cmd.split(' ');
     const command = parts[0].toLowerCase();
 
     switch (command) {
       case '/help':
-        setState(s => ({ ...s, showHelp: true }));
+        setShowHelp(true);
         break;
-
       case '/model':
         if (parts[1] === 'list') {
           addMessage('system', '⏳ Fetching live models...\n(Use /model to open interactive picker)');
         } else if (parts[1] === 'reset') {
           addMessage('system', '🔄 Model reset to auto-detect');
         } else {
-          setState(s => ({ ...s, showModelPicker: true, modelNumber: '' }));
+          setShowModelPicker(true);
         }
         break;
-
       case '/memory':
         try {
-          const data = await getMemories();
+          const res = await fetch(`${API}/api/memories`);
+          const data = await res.json();
           if (data.memories.length === 0) {
             addMessage('system', 'No memories yet.');
           } else {
@@ -154,14 +144,13 @@ export default function App() {
           }
         } catch { addMessage('system', 'Failed to load memories.'); }
         break;
-
       case '/procedures':
         addMessage('system', 'No procedures learned yet.');
         break;
-
       case '/cron':
         try {
-          const data = await getCron();
+          const res = await fetch(`${API}/api/cron`);
+          const data = await res.json();
           if (data.jobs.length === 0) {
             addMessage('system', 'No cron jobs scheduled.');
           } else {
@@ -172,44 +161,41 @@ export default function App() {
           }
         } catch { addMessage('system', 'Failed to load cron jobs.'); }
         break;
-
       case '/events':
         try {
-          const data = await getEvents();
-          addMessage('system', `⚡ Event Rules:\n${data.result || 'None'}`);
+          const res = await fetch(`${API}/api/events`);
+          const data = await res.json();
+          addMessage('system', `⚡ Event Rules:\n${JSON.stringify(data.rules || [], null, 2)}`);
         } catch { addMessage('system', 'Failed to load events.'); }
         break;
-
       case '/recent_events':
         try {
-          const data = await getEvents();
+          const res = await fetch(`${API}/api/events/recent`);
+          const data = await res.json();
           addMessage('system', `📊 Recent Events:\n${data.result || 'None'}`);
         } catch { addMessage('system', 'Failed to load events.'); }
         break;
-
       case '/snapshots':
         try {
-          const data = await getSnapshots();
+          const res = await fetch(`${API}/api/git/snapshots`);
+          const data = await res.json();
           addMessage('system', `📦 Git Snapshots:\n${data.result || 'None'}`);
         } catch { addMessage('system', 'Failed to load snapshots.'); }
         break;
-
       case '/save':
         addMessage('system', '✅ Agent state saved.');
         break;
-
       case '/voice':
         addMessage('system', '🎤 Voice mode toggled.');
         break;
-
       case '/reflect':
         addMessage('system', '🔍 Reflection toggled.');
         break;
-
       case '/clear':
-        setState(s => ({ ...s, messages: [], showHelp: false, showModelPicker: false }));
+        setMessages([]);
+        setShowHelp(false);
+        setShowModelPicker(false);
         break;
-
       default:
         addMessage('system', `Unknown command: ${command}. Type /help`);
     }
@@ -217,113 +203,96 @@ export default function App() {
 
   // ── Handle chat ──
   const handleChat = async (text: string) => {
-    setState(s => ({ ...s, loading: true }));
-
+    setLoading(true);
     try {
-      const response: ChatResponse = await sendMessage(text);
+      const res = await fetch(`${API}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, reflection: true }),
+      });
+      if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
+      const data = await res.json();
 
-      const assistantMsg: Message = {
-        role: 'assistant',
-        content: response.response,
-        timestamp: new Date(),
-        tools: response.tools_used,
-        reflected: response.reflected,
-        duration: response.duration,
-      };
-      setState(s => ({ ...s, messages: [...s.messages, assistantMsg], loading: false }));
-      loadStats();
+      addMessage('assistant', data.response, {
+        tools: data.tools_used,
+        reflected: data.reflected,
+        duration: data.duration,
+      });
+      // Refresh stats
+      fetch(`${API}/api/stats`).then(r => r.json()).then(setStats).catch(() => {});
     } catch (err: any) {
       addMessage('system', `⚠️ Error: ${err.message}`);
-      setState(s => ({ ...s, loading: false }));
     }
+    setLoading(false);
   };
-
-  const addMessage = (role: Message['role'], content: string) => {
-    setState(s => ({
-      ...s,
-      messages: [...s.messages, { role, content, timestamp: new Date() }],
-    }));
-  };
-
-  // ── Autocomplete ──
-  useEffect(() => {
-    if (state.input.startsWith('/') && state.input.length > 0) {
-      const matches = COMMANDS.filter(([cmd]) => cmd.startsWith(state.input.toLowerCase()));
-      setState(s => ({
-        ...s,
-        autocompleteVisible: matches.length > 0 && matches.length < COMMANDS.length,
-        autocompleteMatches: matches,
-        autocompleteIndex: 0,
-      }));
-    } else {
-      setState(s => ({ ...s, autocompleteVisible: false }));
-    }
-  }, [state.input]);
 
   // ── Key bindings ──
-  useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
+  useInput((inputStr, key) => {
+    if (key.ctrl && inputStr === 'c') {
       exit();
       return;
     }
 
-    // Model picker keys
-    if (state.showModelPicker) {
+    if (showModelPicker) {
       if (key.escape) {
-        setState(s => ({ ...s, showModelPicker: false, modelNumber: '' }));
+        setShowModelPicker(false);
       }
       return;
     }
 
-    // Help overlay
-    if (state.showHelp) {
+    if (showHelp) {
       if (key.escape || key.return) {
-        setState(s => ({ ...s, showHelp: false }));
+        setShowHelp(false);
       }
       return;
     }
 
-    // Autocomplete navigation
-    if (state.autocompleteVisible) {
+    if (autocompleteVisible) {
       if (key.upArrow) {
-        setState(s => ({
-          ...s,
-          autocompleteIndex: Math.max(0, s.autocompleteIndex - 1),
-        }));
+        setAutocompleteIndex(prev => Math.max(0, prev - 1));
       } else if (key.downArrow) {
-        setState(s => ({
-          ...s,
-          autocompleteIndex: Math.min(s.autocompleteMatches.length - 1, s.autocompleteIndex + 1),
-        }));
+        setAutocompleteIndex(prev => Math.min(autocompleteMatches.length - 1, prev + 1));
       } else if (key.tab || key.return) {
-        if (state.autocompleteMatches[state.autocompleteIndex]) {
-          setState(s => ({
-            ...s,
-            input: state.autocompleteMatches[state.autocompleteIndex][0] + ' ',
-            autocompleteVisible: false,
-          }));
+        if (autocompleteMatches[autocompleteIndex]) {
+          setInput(autocompleteMatches[autocompleteIndex][0] + ' ');
+          setAutocompleteVisible(false);
         }
       } else if (key.escape) {
-        setState(s => ({ ...s, autocompleteVisible: false }));
+        setAutocompleteVisible(false);
       }
     }
   });
 
-  // ── Render ──
-  const promptModel = state.stats?.provider?.split('/')[0] || 'none';
-  const promptPct = '';
+  const providerShort = stats?.provider?.split('/')[0] || 'none';
+  const modelShort = stats?.provider?.split('/')[1] || 'none';
 
   return (
     <Box flexDirection="column" height="100%">
       {/* ── Banner ── */}
-      <Banner connected={state.connected} stats={state.stats} />
+      <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1} marginBottom={0}>
+        <Box>
+          <Text color={C.accent} bold>  ✦ </Text>
+          <Text color={C.bright} bold>PRIVYA</Text>
+          <Text color={C.dim}> – AI Agent Framework</Text>
+        </Box>
+        <Box>
+          <Text color={C.dim}>  Agent v1.0.0 (2026.09.02)</Text>
+        </Box>
+      </Box>
+
+      {/* ── Info strip ── */}
+      <Box paddingX={1} marginBottom={0}>
+        <Text color={C.dim}>  ● </Text>
+        <Text color={C.bright}>{modelShort}</Text>
+        <Text color={C.dim}> · {connected ? '🟢 connected' : '🔴 offline'}</Text>
+      </Box>
 
       {/* ── Chat area ── */}
       <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={C.border} paddingX={1}>
-        {state.messages.map((msg, i) => (
+        {messages.map((msg, i) => (
           <MessageBubble key={i} msg={msg} />
         ))}
-        {state.loading && (
+        {loading && (
           <Box>
             <Text color={C.accent}>  🧠 thinking...</Text>
           </Box>
@@ -331,35 +300,56 @@ export default function App() {
       </Box>
 
       {/* ── Autocomplete popup ── */}
-      {state.autocompleteVisible && (
-        <AutocompletePopup
-          matches={state.autocompleteMatches}
-          selectedIndex={state.autocompleteIndex}
-        />
+      {autocompleteVisible && (
+        <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1}>
+          {autocompleteMatches.slice(0, 8).map(([cmd, desc], i) => (
+            <Box key={cmd}>
+              <Text color={i === autocompleteIndex ? C.white : C.dim}>
+                {i === autocompleteIndex ? ' ❯ ' : '   '}
+              </Text>
+              <Text color={i === autocompleteIndex ? C.white : C.bright} bold={i === autocompleteIndex}>
+                {cmd}
+              </Text>
+              <Text color={C.dim}>  {desc}</Text>
+            </Box>
+          ))}
+        </Box>
       )}
 
       {/* ── Help overlay ── */}
-      {state.showHelp && <HelpOverlay onClose={() => setState(s => ({ ...s, showHelp: false }))} />}
+      {showHelp && (
+        <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1} marginBottom={1}>
+          <Text color={C.accent} bold>  ━━━ Commands ━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
+          {COMMANDS.map(([cmd, desc]) => (
+            <Box key={cmd}>
+              <Text color={C.bright}>  {cmd.padEnd(18)}</Text>
+              <Text color={C.dim}>{desc}</Text>
+            </Box>
+          ))}
+          <Text color={C.dim}>  Press Esc to close</Text>
+        </Box>
+      )}
 
       {/* ── Model picker overlay ── */}
-      {state.showModelPicker && (
-        <ModelPicker
-          number={state.modelNumber}
-          onNumberChange={(n) => setState(s => ({ ...s, modelNumber: n }))}
-          onSelect={(provider, model) => {
-            addMessage('system', `✅ Switched to ${provider} / ${model}`);
-            setState(s => ({ ...s, showModelPicker: false, modelNumber: '' }));
-          }}
-          onCancel={() => setState(s => ({ ...s, showModelPicker: false, modelNumber: '' }))}
-        />
+      {showModelPicker && (
+        <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1} marginBottom={1}>
+          <Text color={C.accent} bold>  ✦ Model Picker</Text>
+          <Text color={C.dim}>  Select a model (type number):</Text>
+          <Text color={C.bright}>    1) llama-3.3-70b-versatile  <Text color={C.dim}>Best all-around</Text></Text>
+          <Text color={C.bright}>    2) llama-3.1-8b-instant      <Text color={C.dim}>Fastest</Text></Text>
+          <Text color={C.bright}>    3) meta-llama/llama-3.3-70b-instruct  <Text color={C.dim}>Free</Text></Text>
+          <Text color={C.bright}>    4) anthropic/claude-3.5-sonnet  <Text color={C.dim}>$0.06/1M</Text></Text>
+          <Text color={C.bright}>    5) openai/gpt-4o  <Text color={C.dim}>$2.50/1M</Text></Text>
+          <Text color={C.dim}>  Press Esc to cancel</Text>
+        </Box>
       )}
 
       {/* ── Input bar ── */}
       <Box borderStyle="round" borderColor={C.accent} paddingX={1}>
         <Text color={C.accent}>❯ </Text>
         <TextInput
-          value={state.input}
-          onChange={(v) => setState(s => ({ ...s, input: v }))}
+          value={input}
+          onChange={setInput}
           onSubmit={handleSubmit}
           placeholder=""
           focus
@@ -367,22 +357,13 @@ export default function App() {
       </Box>
 
       {/* ── Status bar ── */}
-      <StatusBar stats={state.stats} loading={state.loading} />
-    </Box>
-  );
-}
-
-// ── Banner Component ──
-function Banner({ connected, stats }: { connected: boolean; stats: Stats | null }) {
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1} marginBottom={0}>
-      <Box>
-        <Text color={C.accent} bold>  ✦ </Text>
-        <Text color={C.bright} bold>PRIVYA</Text>
-        <Text color={C.mid}> – AI Agent Framework</Text>
-      </Box>
-      <Box>
-        <Text color={C.dim}>  Agent v1.0.0 (2026.09.02)</Text>
+      <Box justifyContent="space-between" paddingX={1}>
+        <Text color={C.accent}>
+          {loading ? '🧠 thinking' : '●'} {modelShort?.substring(0, 25) || 'none'}
+        </Text>
+        <Text color={C.dim}>
+          mem:{stats?.memories || 0} · {stats?.uptime || '--'}
+        </Text>
       </Box>
     </Box>
   );
@@ -426,86 +407,4 @@ function MessageBubble({ msg }: { msg: Message }) {
   }
 
   return null;
-}
-
-// ── Autocomplete Popup ──
-function AutocompletePopup({ matches, selectedIndex }: { matches: [string, string][]; selectedIndex: number }) {
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1}>
-      {matches.slice(0, 8).map(([cmd, desc], i) => (
-        <Box key={cmd}>
-          <Text color={i === selectedIndex ? C.white : C.mid}>
-            {i === selectedIndex ? ' ❯ ' : '   '}
-          </Text>
-          <Text color={i === selectedIndex ? C.white : C.bright} bold={i === selectedIndex}>
-            {cmd}
-          </Text>
-          <Text color={C.dim}>  {desc}</Text>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-// ── Help Overlay ──
-function HelpOverlay({ onClose }: { onClose: () => void }) {
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1} marginBottom={1}>
-      <Text color={C.accent} bold>  ━━━ Commands ━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-      {COMMANDS.map(([cmd, desc]) => (
-        <Box key={cmd}>
-          <Text color={C.bright}>  {cmd.padEnd(18)}</Text>
-          <Text color={C.dim}>{desc}</Text>
-        </Box>
-      ))}
-      <Text color={C.dim}>  Press any key to close</Text>
-    </Box>
-  );
-}
-
-// ── Model Picker ──
-function ModelPicker({ number, onNumberChange, onSelect, onCancel }: {
-  number: string;
-  onNumberChange: (n: string) => void;
-  onSelect: (provider: string, model: string) => void;
-  onCancel: () => void;
-}) {
-  const models = [
-    { idx: 1, provider: 'Groq', id: 'llama-3.3-70b-versatile', desc: 'Best all-around' },
-    { idx: 2, provider: 'Groq', id: 'llama-3.1-8b-instant', desc: 'Fastest' },
-    { idx: 3, provider: 'OpenRouter', id: 'meta-llama/llama-3.3-70b-instruct', desc: 'Free' },
-    { idx: 4, provider: 'OpenRouter', id: 'anthropic/claude-3.5-sonnet', desc: '$0.06/1M' },
-    { idx: 5, provider: 'OpenRouter', id: 'openai/gpt-4o', desc: '$2.50/1M' },
-  ];
-
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1} marginBottom={1}>
-      <Text color={C.accent} bold>  ✦ Model Picker</Text>
-      <Text color={C.dim}>  Select a model (type number):</Text>
-      {models.map(m => (
-        <Box key={m.idx}>
-          <Text color={C.bright}>    {m.idx}) {m.id}</Text>
-          <Text color={C.dim}>  {m.desc}</Text>
-        </Box>
-      ))}
-      <Text color={C.dim}>  Press Enter to select, Esc to cancel</Text>
-    </Box>
-  );
-}
-
-// ── Status Bar ──
-function StatusBar({ stats, loading }: { stats: Stats | null; loading: boolean }) {
-  const provider = stats?.provider?.split('/')[0] || 'none';
-  const model = stats?.provider?.split('/')[1] || 'none';
-
-  return (
-    <Box justifyContent="space-between" paddingX={1}>
-      <Text color={C.accent}>
-        {loading ? '🧠 thinking' : '●'} {model?.substring(0, 25) || 'none'}
-      </Text>
-      <Text color={C.dim}>
-        mem:{stats?.memories || 0} · proc:{stats?.procedures || 0} · {stats?.uptime || '--'}
-      </Text>
-    </Box>
-  );
 }

@@ -15,10 +15,9 @@ cd "$DIR"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-MAGENTA='\033[0;35m'
 NC='\033[0m'
 
-echo -e "${MAGENTA}✦ Privya AI Agent – Starting...${NC}"
+echo -e "${GREEN}✦ Privya AI Agent – Starting...${NC}"
 
 # ── Start API server ──
 start_api() {
@@ -47,13 +46,13 @@ uvicorn.run(app, host='0.0.0.0', port=8000, log_level='warning')
 
 # ── Start TUI ──
 start_tui() {
-    echo -e "${YELLOW}  Starting Ink TUI...${NC}"
+    echo -e "${GREEN}  Starting Hermes-style Ink TUI...${NC}"
     cd ui-tui
     if [ ! -d "node_modules" ]; then
         echo -e "${YELLOW}  Installing TUI dependencies...${NC}"
         npm install --silent 2>/dev/null
     fi
-    npx tsx src/entry.tsx
+    npx tsx --tsconfig tsconfig.json src/entry.tsx
     cd ..
 }
 
