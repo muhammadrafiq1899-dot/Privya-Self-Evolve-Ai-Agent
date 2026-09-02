@@ -184,7 +184,7 @@ class PrivyaTUI:
         if self.context_tokens_used > 0 and self.context_window > 0:
             p = min(100, int(self.context_tokens_used / self.context_window * 100))
             pct = f" {p}%"
-        return HTML(f'<style name="model">{m}{pct}</style> <style name="prompt">></style> ')
+        return HTML(f'<style name="model">{m}{pct}</style> <style name="prompt">>&#8288;</style> ')
 
     # -------------------------------------------------------------------
     # Rich output helpers
@@ -193,36 +193,36 @@ class PrivyaTUI:
     def _show_banner(self):
         """Show the startup banner."""
         banner = Table(show_header=False, box=None, padding=(0, 1))
-        banner.add_column("key", style="bold magenta")
-        banner.add_column("val", style="bright_magenta")
-        banner.add_row("✦", Text("PRIVYA – AI Agent Framework", style="bold bright_magenta"))
-        banner.add_row("", Text(f"v{APP_VERSION} ({APP_BUILD})", style="dim magenta"))
-        console.print(Panel(banner, border_style="bright_magenta", box=box.ROUNDED))
+        banner.add_column("key", style="bold green")
+        banner.add_column("val", style="bright_white")
+        banner.add_row("✦", Text("PRIVYA – AI Agent Framework", style="bold bright_white"))
+        banner.add_row("", Text(f"v{APP_VERSION} ({APP_BUILD})", style="dim white"))
+        console.print(Panel(banner, border_style="bright_green", box=box.ROUNDED))
 
         info = Table(show_header=False, box=None, padding=(0, 1))
-        info.add_column("key", style="dim magenta")
-        info.add_column("val", style="bright_magenta")
-        info.add_row("● Model", Text(self.current_model, style="bold bright_magenta"))
-        info.add_row("● Tools", Text(f"{len(ALL_TOOLS)} ({', '.join(TOOLSETS[:8])}...)", style="magenta"))
-        info.add_row("● Provider", Text(self.current_provider, style="bright_magenta"))
+        info.add_column("key", style="dim green")
+        info.add_column("val", style="bright_white")
+        info.add_row("● Model", Text(self.current_model, style="bold bright_white"))
+        info.add_row("● Tools", Text(f"{len(ALL_TOOLS)} ({', '.join(TOOLSETS[:8])}...)", style="green"))
+        info.add_row("● Provider", Text(self.current_provider, style="bright_white"))
         console.print(info)
         console.print()
 
         tip = Text()
-        tip.append("  ✦ ", style="bold bright_magenta")
-        tip.append("Welcome! ", style="bright_magenta")
-        tip.append("Type a message or ", style="dim")
-        tip.append("/help", style="bold bright_magenta")
-        tip.append(" for commands. ", style="dim")
-        tip.append("/model", style="bold bright_magenta")
-        tip.append(" to pick a model.", style="dim")
+        tip.append("  ✦ ", style="bold bright_green")
+        tip.append("Welcome! ", style="bright_white")
+        tip.append("Type a message or ", style="dim white")
+        tip.append("/help", style="bold bright_green")
+        tip.append(" for commands. ", style="dim white")
+        tip.append("/model", style="bold bright_green")
+        tip.append(" to pick a model.", style="dim white")
         console.print(tip)
         console.print()
 
     def _show_help(self):
-        table = Table(title="✦ Commands", box=box.ROUNDED, border_style="bright_magenta", title_style="bold bright_magenta")
-        table.add_column("Command", style="bold bright_magenta", no_wrap=True)
-        table.add_column("Description", style="magenta")
+        table = Table(title="✦ Commands", box=box.ROUNDED, border_style="bright_green", title_style="bold bright_white")
+        table.add_column("Command", style="bold bright_green", no_wrap=True)
+        table.add_column("Description", style="bright_white")
         for cmd, desc in COMMANDS:
             table.add_row(cmd, desc)
         console.print(table)
@@ -231,10 +231,10 @@ class PrivyaTUI:
         info = get_session_info()
         providers = list_providers()
 
-        table = Table(title="✦ Provider Status", box=box.ROUNDED, border_style="bright_magenta", title_style="bold bright_magenta")
-        table.add_column("Provider", style="bold bright_magenta")
-        table.add_column("Status", style="magenta")
-        table.add_column("Model", style="bright_magenta")
+        table = Table(title="✦ Provider Status", box=box.ROUNDED, border_style="bright_green", title_style="bold bright_white")
+        table.add_column("Provider", style="bold bright_green")
+        table.add_column("Status", style="bright_white")
+        table.add_column("Model", style="bright_white")
 
         for p in providers:
             icon = "●" if p["available"] else "○"
@@ -245,7 +245,7 @@ class PrivyaTUI:
 
         console.print(table)
         pct = min(100, int(self.context_tokens_used / max(1, self.context_window) * 100))
-        console.print(f"  Context: {self.context_tokens_used:,} / {self.context_window:,} tokens ({pct}%)", style="dim magenta")
+        console.print(f"  Context: {self.context_tokens_used:,} / {self.context_window:,} tokens ({pct}%)", style="dim white")
         console.print()
 
     async def _show_model_picker(self):
@@ -257,7 +257,7 @@ class PrivyaTUI:
             console.print(Panel("No providers configured. Add an API key to .env", border_style="red", box=box.ROUNDED))
             return
 
-        console.print("[dim magenta]  ⏳ Fetching live models...[/]")
+        console.print("[dim green]  ⏳ Fetching live models...[/]")
 
         all_models: list[tuple[str, str, str, str]] = []
         for p in available:
@@ -277,20 +277,20 @@ class PrivyaTUI:
         # Show as a Rich Table with numbers
         table = Table(
             title=f"✦ Model Picker – {len(all_models)} available",
-            box=box.ROUNDED, border_style="bright_magenta",
-            title_style="bold bright_magenta",
+            box=box.ROUNDED, border_style="bright_green",
+            title_style="bold bright_white",
             show_lines=False,
         )
-        table.add_column("#", style="bold bright_magenta", width=4, justify="right")
-        table.add_column("Model", style="bright_magenta")
-        table.add_column("Description", style="dim magenta")
+        table.add_column("#", style="bold bright_green", width=4, justify="right")
+        table.add_column("Model", style="bright_white")
+        table.add_column("Description", style="dim white")
 
         current_provider = None
         idx = 1
         model_map: dict[int, tuple[str, str]] = {}
         for provider_id, model_id, desc, prov_name in all_models:
             if provider_id != current_provider:
-                table.add_row("", f"[bold magenta]── {prov_name} ──[/]", "", style="on dark_magenta" if False else "")
+                table.add_row("", f"[bold bright_green]── {prov_name} ──[/]", "")
                 current_provider = provider_id
             table.add_row(str(idx), model_id, desc[:50] if desc else "")
             model_map[idx] = (provider_id, model_id)
@@ -300,12 +300,12 @@ class PrivyaTUI:
         console.print()
 
         # Get selection
-        session = PromptSession(style=Style.from_dict({"": "ansimagenta"}))
+        session = PromptSession(style=Style.from_dict({"model": "ansigreen bold", "prompt": "ansiwhite bold"}))
         try:
             choice = await session.prompt_async("  Select model # (or 'c' to cancel): ")
             choice = choice.strip()
             if choice.lower() in ("c", ""):
-                console.print("[dim magenta]  Cancelled.[/]")
+                console.print("[dim green]  Cancelled.[/]")
                 return
             num = int(choice)
             if num in model_map:
@@ -314,21 +314,21 @@ class PrivyaTUI:
                 if "error" in result:
                     console.print(f"[red]  ❌ {result['error']}[/]")
                 else:
-                    console.print(f"[green]  ✅ {result['message']}[/]")
+                    console.print(f"[bright_green]  ✅ {result['message']}[/]")
                     self._refresh_provider()
             else:
                 console.print(f"[red]  Invalid choice: {num}[/]")
         except (ValueError, EOFError, KeyboardInterrupt):
-            console.print("[dim magenta]  Cancelled.[/]")
+            console.print("[dim green]  Cancelled.[/]")
 
     async def _show_model_list(self):
         providers = list_providers()
         for p in providers:
             icon = "●" if p["available"] else "○"
             active = " ← ACTIVE" if p["session_active"] else ""
-            console.print(f"\n[bold bright_magenta]  {icon} {p['display_name']}{active}[/]")
+            console.print(f"\n[bold bright_green]  {icon} {p['display_name']}{active}[/]")
             if p["available"]:
-                console.print("[dim magenta]    ⏳ Fetching live models...[/]")
+                console.print("[dim green]    ⏳ Fetching live models...[/]")
                 try:
                     live_models = await fetch_models_from_provider(p["id"])
                 except Exception as e:
@@ -337,15 +337,15 @@ class PrivyaTUI:
                 if not live_models:
                     live_models = p["models"]
                 table = Table(box=None, show_header=False, padding=(0, 1))
-                table.add_column("model", style="bright_magenta")
-                table.add_column("desc", style="dim magenta")
+                table.add_column("model", style="bright_white")
+                table.add_column("desc", style="dim white")
                 for m in live_models[:40]:
                     table.add_row(f"  • {m['id']}", m.get("description", "")[:60])
                 console.print(table)
                 if len(live_models) > 40:
-                    console.print(f"[dim magenta]    ... and {len(live_models) - 40} more ({len(live_models)} total)[/]")
+                    console.print(f"[dim green]    ... and {len(live_models) - 40} more ({len(live_models)} total)[/]")
             else:
-                console.print(f"[dim magenta]    (Add {p['key_env']} to .env)[/]")
+                console.print(f"[dim green]    (Add {p['key_env']} to .env)[/]")
 
     def _refresh_provider(self):
         try:
@@ -371,7 +371,7 @@ class PrivyaTUI:
         self.context_tokens_used = self._estimate_tokens(messages)
         start_time = asyncio.get_event_loop().time()
 
-        console.print("[bright_magenta]  🧠 thinking...[/]")
+        console.print("[bright_green]  🧠 thinking...[/]")
 
         for iteration in range(5):
             try:
@@ -392,11 +392,11 @@ class PrivyaTUI:
                     # Thinking block
                     thinking = response.get("thinking", "") or response.get("reasoning_content", "")
                     if thinking:
-                        console.print(Panel(thinking.strip(), title="🔍 Reasoning", border_style="dim magenta", box=box.ROUNDED))
+                        console.print(Panel(thinking.strip(), title="🔍 Reasoning", border_style="dim green", box=box.ROUNDED))
 
                     # Reflection
                     if self.reflection_enabled:
-                        console.print("[bright_magenta]  🔍 Reflecting...[/]")
+                        console.print("[bright_green]  🔍 Reflecting...[/]")
                         try:
                             reflected = await agent_reflect(user_query=user_text, initial_response=content, enabled=True, max_rounds=1)
                             if reflected["reflected"]:
@@ -411,7 +411,7 @@ class PrivyaTUI:
                         asyncio.create_task(self._auto_save(content))
 
                     # Display response in a panel
-                    console.print(Panel(content, title="✦ Privya", border_style="bright_magenta", box=box.ROUNDED))
+                    console.print(Panel(content, title="✦ Privya", border_style="bright_green", box=box.ROUNDED))
                 else:
                     console.print("[yellow]  ⚠️ Empty response from LLM[/]")
                 return
@@ -420,12 +420,12 @@ class PrivyaTUI:
             for tc in tool_calls:
                 func_name = tc["function"]["name"]
                 func_args = tc["function"]["arguments"]
-                console.print(f"[bright_magenta]  🔧 {func_name}[/]")
+                console.print(f"[bright_green]  🔧 {func_name}[/]")
                 result = await combined_execute_tool(func_name, func_args)
                 preview = result.get("result", result.get("error", ""))
                 if isinstance(preview, dict): preview = json.dumps(preview)[:150]
                 if preview:
-                    console.print(f"[dim magenta]  📎 {str(preview)[:150]}[/]")
+                    console.print(f"[dim green]  📎 {str(preview)[:150]}[/]")
                 messages.append({"role": "tool", "tool_call_id": tc["id"],
                                 "content": json.dumps(result, ensure_ascii=False, default=str)[:4000]})
                 self.context_tokens_used = self._estimate_tokens(messages)
@@ -467,48 +467,48 @@ class PrivyaTUI:
         elif command == "/memory":
             memories = long_term.recent(10)
             if not memories:
-                console.print("[dim magenta]  No memories yet.[/]")
+                console.print("[dim green]  No memories yet.[/]")
             else:
-                table = Table(title="🧠 Memories", box=box.ROUNDED, border_style="bright_magenta")
-                table.add_column("#", style="bold bright_magenta", width=3)
-                table.add_column("Content", style="magenta")
+                table = Table(title="🧠 Memories", box=box.ROUNDED, border_style="bright_green")
+                table.add_column("#", style="bold bright_green", width=3)
+                table.add_column("Content", style="bright_white")
                 for i, m in enumerate(memories, 1):
                     table.add_row(str(i), m.text[:120])
                 console.print(table)
         elif command == "/procedures":
             procs = procedural.all_procedures()
             if not procs:
-                console.print("[dim magenta]  No procedures yet.[/]")
+                console.print("[dim green]  No procedures yet.[/]")
             else:
                 for p in procs:
-                    console.print(f"[bright_magenta]  • {p.name}:[/] {p.description}")
+                    console.print(f"[bright_green]  • {p.name}:[/] {p.description}")
         elif command == "/cron":
             jobs = list_cron_jobs()
             if not jobs:
-                console.print("[dim magenta]  No cron jobs.[/]")
+                console.print("[dim green]  No cron jobs.[/]")
             else:
                 for j in jobs:
                     icon = "●" if j.get("enabled") else "○"
-                    console.print(f"[bright_magenta]  {icon} {j['name']}:[/] {j['cron']} → {j['command']}")
+                    console.print(f"[bright_green]  {icon} {j['name']}:[/] {j['cron']} → {j['command']}")
         elif command == "/events":
             result = await list_event_rules()
-            console.print(f"[bright_magenta]  ⚡ Events:[/]\n{result.get('result', 'None')}")
+            console.print(f"[bright_green]  ⚡ Events:[/]\n{result.get('result', 'None')}")
         elif command == "/recent_events":
             result = await list_recent_events()
-            console.print(f"[bright_magenta]  📊 Recent:[/]\n{result.get('result', 'None')}")
+            console.print(f"[bright_green]  📊 Recent:[/]\n{result.get('result', 'None')}")
         elif command == "/snapshots":
             result = await git_list_snapshots()
-            console.print(f"[bright_magenta]  📦 Snapshots:[/]\n{result.get('result', 'None')}")
+            console.print(f"[bright_green]  📦 Snapshots:[/]\n{result.get('result', 'None')}")
         elif command == "/save":
-            console.print("[dim magenta]  Saving...[/]")
+            console.print("[dim green]  Saving...[/]")
             result = await git_save_state(f"save-{datetime.now().strftime('%H%M')}")
-            console.print(f"[green]  ✅ {result.get('result', result.get('error', 'Done'))}[/]")
+            console.print(f"[bright_green]  ✅ {result.get('result', result.get('error', 'Done'))}[/]")
         elif command == "/voice":
             self.voice_mode = not self.voice_mode
-            console.print(f"[bright_magenta]  🎤 Voice {'enabled' if self.voice_mode else 'disabled'}[/]")
+            console.print(f"[bright_green]  🎤 Voice {'enabled' if self.voice_mode else 'disabled'}[/]")
         elif command == "/reflect":
             self.reflection_enabled = not self.reflection_enabled
-            console.print(f"[bright_magenta]  🔍 Reflection {'enabled' if self.reflection_enabled else 'disabled'}[/]")
+            console.print(f"[bright_green]  🔍 Reflection {'enabled' if self.reflection_enabled else 'disabled'}[/]")
         elif command == "/clear":
             os.system('cls' if os.name == 'nt' else 'clear')
             short_term.clear()
@@ -525,7 +525,7 @@ class PrivyaTUI:
         if "error" in result:
             console.print(f"[red]  ❌ {result['error']}[/]")
         else:
-            console.print(f"[green]  ✅ {result['message']}[/]")
+            console.print(f"[bright_green]  ✅ {result['message']}[/]")
             self._refresh_provider()
 
     # -------------------------------------------------------------------
@@ -537,7 +537,7 @@ class PrivyaTUI:
         session = PromptSession(
             completer=SlashCompleter(),
             complete_while_typing=True,
-            style=Style.from_dict({"": "ansimagenta"}),
+            style=Style.from_dict({"model": "ansigreen bold", "prompt": "ansiwhite bold"}),
         )
 
         while True:
@@ -549,7 +549,7 @@ class PrivyaTUI:
                     continue
 
                 self.last_user_msg = user_text
-                console.print(f"[bright_magenta]  ✦[/] {user_text}")
+                console.print(f"[bright_green]  ✦[/] {user_text}")
 
                 if user_text.startswith("/"):
                     await self.handle_command(user_text)
@@ -558,7 +558,7 @@ class PrivyaTUI:
                     await self.agent_loop(user_text)
 
             except (KeyboardInterrupt, EOFError):
-                console.print("\n[dim magenta]  Goodbye! ✦[/]")
+                console.print("\n[dim green]  Goodbye! ✦[/]")
                 break
 
 
