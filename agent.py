@@ -483,7 +483,8 @@ class AgentTUI(App):
             if i < len(matches) - 1:
                 t.append("\n")
 
-        autocomplete.update(t)
+        autocomplete.clear()
+        autocomplete.write(t)
         autocomplete.add_class("visible")
         self.autocomplete_visible = True
 
