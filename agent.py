@@ -671,7 +671,7 @@ class AgentTUI(App):
 
         option_list = OptionList(*options, id="model-picker")
         option_list.styles.max_height = 25
-        yield option_list
+        await self.mount(option_list)
 
         self.model_picker_visible = True
         try:
