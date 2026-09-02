@@ -373,7 +373,9 @@ class PrivyaTUI:
         self.context_tokens_used = self._estimate_tokens(messages)
         start_time = asyncio.get_event_loop().time()
 
-        with Spinner("dots", text="[bright_magenta]  🧠 thinking...[/]", console=console) as spinner:
+        spinner = Spinner("dots", text="[bright_magenta]  🧠 thinking...[/]")
+        console.print(spinner)
+        with spinner:
             for iteration in range(5):
                 try:
                     response = await chat(messages, tools=get_all_tools(), temperature=0.7)
@@ -397,7 +399,7 @@ class PrivyaTUI:
 
                         # Reflection
                         if self.reflection_enabled:
-                            spinner.update("[bright_magenta]  🔍 Reflecting...[/]")
+                            spinner.update(text="[bright_magenta]  🔍 Reflecting...[/]")
                             reflected = await agent_reflect(user_query=user_text, initial_response=content, enabled=True, max_rounds=1)
                             if reflected["reflected"]:
                                 content = reflected["response"]
@@ -416,7 +418,7 @@ class PrivyaTUI:
                 for tc in tool_calls:
                     func_name = tc["function"]["name"]
                     func_args = tc["function"]["arguments"]
-                    spinner.update(f"[bright_magenta]  🔧 {func_name}[/]")
+                    spinner.update(text=f"[bright_magenta]  🔧 {func_name}[/]")
                     result = await combined_execute_tool(func_name, func_args)
                     preview = result.get("result", result.get("error", ""))
                     if isinstance(preview, dict): preview = json.dumps(preview)[:150]
