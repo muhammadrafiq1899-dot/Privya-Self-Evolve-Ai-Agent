@@ -28,8 +28,6 @@ from rich.columns import Columns
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich import box
-from rich.live import Live
-from rich.spinner import Spinner
 from rich.tree import Tree
 
 from prompt_toolkit import PromptSession
@@ -373,60 +371,64 @@ class PrivyaTUI:
         self.context_tokens_used = self._estimate_tokens(messages)
         start_time = asyncio.get_event_loop().time()
 
-        spinner = Spinner("dots", text="[bright_magenta]  🧠 thinking...[/]")
-        console.print(spinner)
-        with spinner:
-            for iteration in range(5):
-                try:
-                    response = await chat(messages, tools=get_all_tools(), temperature=0.7)
-                except Exception as e:
-                    console.print(f"[red]  ⚠️ LLM error: {e}[/]")
-                    return
+        console.print("[bright_magenta]  🧠 thinking...[/]")
 
-                elapsed = asyncio.get_event_loop().time() - start_time
-                self.last_response_time = elapsed
-                messages.append(response)
-                self.context_tokens_used = self._estimate_tokens(messages)
+        for iteration in range(5):
+            try:
+                response = await chat(messages, tools=get_all_tools(), temperature=0.7)
+            except Exception as e:
+                console.print(f"[red]  ⚠️ LLM error: {e}[/]")
+                return
 
-                tool_calls = response.get("tool_calls")
-                if not tool_calls:
-                    content = response.get("content", "")
-                    if content:
-                        # Thinking block
-                        thinking = response.get("thinking", "") or response.get("reasoning_content", "")
-                        if thinking:
-                            console.print(Panel(thinking.strip(), title="🔍 Reasoning", border_style="dim magenta", box=box.ROUNDED))
+            elapsed = asyncio.get_event_loop().time() - start_time
+            self.last_response_time = elapsed
+            messages.append(response)
+            self.context_tokens_used = self._estimate_tokens(messages)
 
-                        # Reflection
-                        if self.reflection_enabled:
-                            spinner.update(text="[bright_magenta]  🔍 Reflecting...[/]")
+            tool_calls = response.get("tool_calls")
+            if not tool_calls:
+                content = response.get("content", "")
+                if content:
+                    # Thinking block
+                    thinking = response.get("thinking", "") or response.get("reasoning_content", "")
+                    if thinking:
+                        console.print(Panel(thinking.strip(), title="🔍 Reasoning", border_style="dim magenta", box=box.ROUNDED))
+
+                    # Reflection
+                    if self.reflection_enabled:
+                        console.print("[bright_magenta]  🔍 Reflecting...[/]")
+                        try:
                             reflected = await agent_reflect(user_query=user_text, initial_response=content, enabled=True, max_rounds=1)
                             if reflected["reflected"]:
                                 content = reflected["response"]
                                 details = reflected["details"]
                                 console.print(f"[dim green]  ✅ Improved ({details['verdict']})[/]")
+                        except Exception as e:
+                            console.print(f"[yellow]  ⚠️ Reflection failed: {e}[/]")
 
-                        short_term.add({"role": "assistant", "content": content})
-                        if len(content) > 100:
-                            asyncio.create_task(self._auto_save(content))
+                    short_term.add({"role": "assistant", "content": content})
+                    if len(content) > 100:
+                        asyncio.create_task(self._auto_save(content))
 
-                        # Display response in a panel
-                        console.print(Panel(content, title="✦ Privya", border_style="bright_magenta", box=box.ROUNDED))
-                    return
+                    # Display response in a panel
+                    console.print(Panel(content, title="✦ Privya", border_style="bright_magenta", box=box.ROUNDED))
+                else:
+                    console.print("[yellow]  ⚠️ Empty response from LLM[/]")
+                return
 
-                # Execute tools
-                for tc in tool_calls:
-                    func_name = tc["function"]["name"]
-                    func_args = tc["function"]["arguments"]
-                    spinner.update(text=f"[bright_magenta]  🔧 {func_name}[/]")
-                    result = await combined_execute_tool(func_name, func_args)
-                    preview = result.get("result", result.get("error", ""))
-                    if isinstance(preview, dict): preview = json.dumps(preview)[:150]
-                    if preview:
-                        console.print(f"[dim magenta]  📎 {str(preview)[:150]}[/]")
-                    messages.append({"role": "tool", "tool_call_id": tc["id"],
-                                    "content": json.dumps(result, ensure_ascii=False, default=str)[:4000]})
-                    self.context_tokens_used = self._estimate_tokens(messages)
+            # Execute tools
+            for tc in tool_calls:
+                func_name = tc["function"]["name"]
+                func_args = tc["function"]["arguments"]
+                console.print(f"[bright_magenta]  🔧 {func_name}[/]")
+                result = await combined_execute_tool(func_name, func_args)
+                preview = result.get("result", result.get("error", ""))
+                if isinstance(preview, dict): preview = json.dumps(preview)[:150]
+                if preview:
+                    console.print(f"[dim magenta]  📎 {str(preview)[:150]}[/]")
+                messages.append({"role": "tool", "tool_call_id": tc["id"],
+                                "content": json.dumps(result, ensure_ascii=False, default=str)[:4000]})
+                self.context_tokens_used = self._estimate_tokens(messages)
 
         console.print("[yellow]  ⚠️ Max iterations reached.[/]")
 
