@@ -156,14 +156,16 @@ def set_session_provider(provider: str | None, model: str | None = None) -> dict
     if model:
         valid_ids = [m["id"] for m in cfg["models"]]
         if model not in valid_ids:
-            # Try partial match
+            # Try partial match against known models
             matches = [m for m in valid_ids if model.lower() in m.lower()]
             if len(matches) == 1:
                 model = matches[0]
             elif len(matches) > 1:
                 return {"error": f"Multiple models match '{model}': {matches}. Be more specific."}
             else:
-                return {"error": f"Model '{model}' not found for {pname}. Use /model list to see options."}
+                # Not in hardcoded list — could be a live-fetched model
+                # Accept it (provider API will validate at call time)
+                pass
 
     _session_provider = pname
     _session_model = model  # None = use default
