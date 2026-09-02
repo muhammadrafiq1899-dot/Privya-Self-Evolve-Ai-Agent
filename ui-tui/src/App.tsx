@@ -250,8 +250,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, reflection: true }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (!res.ok) {
+        const detail = data.detail || data.response || `HTTP ${res.status}`;
+        addMsg('system', `⚠️ ${detail}`);
+        setLoading(false);
+        return;
+      }
       addMsg('assistant', data.response, { tools: data.tools_used, dur: data.duration });
       fetchStats();
     } catch (err: any) {

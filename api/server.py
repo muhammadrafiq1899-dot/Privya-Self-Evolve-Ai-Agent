@@ -31,7 +31,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-load_dotenv()
+# Always load .env from the project root, regardless of CWD
+_project_root = Path(__file__).parent.parent
+load_dotenv(_project_root / ".env")
 
 # Import agent modules
 from llm import chat, get_client
@@ -164,7 +166,12 @@ async def chat_endpoint(req: ChatRequest):
         try:
             response = await chat(messages, tools=get_tools(), temperature=0.7)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"LLM error: {e}")
+            log_activity(f"LLM error: {e}")
+            return ChatResponse(
+                response=f"⚠️ LLM Error: {e}",
+                tools_used=tools_used,
+                duration=time.time() - start,
+            )
         
         messages.append(response)
         
@@ -391,6 +398,13 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.on_event("startup")
 async def startup():
     log_activity("API server started")
+    # Check provider status
+    try:
+        from llm import _resolve_provider
+        pname, cfg, model = _resolve_provider()
+        log_activity(f"LLM provider: {pname} / {model}")
+    except Exception as e:
+        log_activity(f"LLM provider error: {e}")
     await broadcast({"type": "activity", "time": datetime.now().strftime("%H:%M:%S"), "text": "Server started"})
 
 @app.on_event("shutdown")
