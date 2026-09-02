@@ -1,4 +1,4 @@
-textual>=0.40.0
+prompt_toolkit>=3.0.0
 openai>=1.0.0
 python-dotenv>=1.0.0
 duckduckgo-search>=4.0.0
