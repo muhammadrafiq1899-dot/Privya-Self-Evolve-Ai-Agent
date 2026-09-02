@@ -245,7 +245,7 @@ class AgentTUI(App):
     /* ── Autocomplete popup ── */
     #autocomplete {
         height: auto;
-        max-height: 15;
+        max-height: 12;
         margin: 0 1;
         padding: 0;
         background: #1a0030;
@@ -285,11 +285,12 @@ class AgentTUI(App):
         color: #c080ff;
     }
 
-    /* ── Model picker overlay ── */
+    /* ── Model picker (dynamically mounted) ── */
     #model-picker {
-        max-height: 25;
+        max-height: 20;
         background: #0d0014;
         border: hidden;
+        margin: 0 1;
     }
 
     /* ── Welcome banner ── */
@@ -309,6 +310,12 @@ class AgentTUI(App):
         Binding("ctrl+v", "voice_input", "Voice", show=True),
         Binding("ctrl+s", "save_state", "Save", show=True),
         Binding("escape", "hide_autocomplete", "Close", show=False),
+        Binding("up", "scroll_up", "Up", show=False),
+        Binding("down", "scroll_down", "Down", show=False),
+        Binding("pageup", "scroll_page_up", "PgUp", show=False),
+        Binding("pagedown", "scroll_page_down", "PgDn", show=False),
+        Binding("home", "scroll_home", "Home", show=False),
+        Binding("end", "scroll_end", "End", show=False),
     ]
 
     current_provider: reactive[str] = reactive("unknown")
@@ -670,23 +677,17 @@ class AgentTUI(App):
             options.append(Option(opt_text, id=model_id))
 
         option_list = OptionList(*options, id="model-picker")
-        option_list.styles.max_height = 25
+        option_list.styles.max_height = 20
         await self.mount(option_list)
 
+        # Focus the option list so arrow keys work immediately
+        option_list.focus()
         self.model_picker_visible = True
+
+        selected_id = None
         try:
-            event = await self._wait_for_option_select(option_list)
-            if event is not None:
-                selected_id = event.option_id
-                for provider_id, model_id, display, desc, provider_tag in all_models:
-                    if model_id == selected_id:
-                        result = set_session_provider(provider_id, model_id)
-                        if "error" in result:
-                            log.write(Text(f"  ❌ {result['error']}", style="bold #ff4040"))
-                        else:
-                            log.write(Text(f"  ✅ {result['message']}", style="bold #e0b0ff"))
-                            self._refresh_provider()
-                        break
+            # Wait for option selected event via app message handling
+            selected_id = await self._wait_for_option_select(option_list)
         except Exception:
             pass
         finally:
@@ -695,17 +696,34 @@ class AgentTUI(App):
                 option_list.remove()
             except Exception:
                 pass
+            # Return focus to input
+            self.query_one("#input-bar", Input).focus()
+
+        if selected_id is not None:
+            for provider_id, model_id, display, desc, provider_tag in all_models:
+                if model_id == selected_id:
+                    result = set_session_provider(provider_id, model_id)
+                    if "error" in result:
+                        log.write(Text(f"  ❌ {result['error']}", style="bold #ff4040"))
+                    else:
+                        log.write(Text(f"  ✅ {result['message']}", style="bold #e0b0ff"))
+                        self._refresh_provider()
+                    break
 
     async def _wait_for_option_select(self, option_list: OptionList) -> Any:
+        """Wait for user to select an option in the OptionList."""
         result_holder = {"value": None}
 
-        async def watch():
-            async for event in option_list.events():
-                if isinstance(event, OptionList.OptionSelected):
-                    result_holder["value"] = event
-                    return
+        async def watch_events():
+            try:
+                async for event in option_list.events():
+                    if hasattr(event, 'option_id'):
+                        result_holder["value"] = event.option_id
+                        return
+            except Exception:
+                pass
 
-        self.run_worker(watch(), exclusive=True)
+        self.run_worker(watch_events(), exclusive=True)
         while result_holder["value"] is None:
             await asyncio.sleep(0.05)
             if not option_list.is_mounted:
@@ -972,6 +990,42 @@ class AgentTUI(App):
         log.write(Text("  Saving agent state...", style="dim #9b30ff"))
         result = await git_save_state(f"quick-save-{datetime.now().strftime('%H%M')}")
         log.write(Text(f"  {result.get('result', result.get('error', 'Unknown'))}", style="dim #c080ff"))
+
+    # -----------------------------------------------------------------------
+    # Scroll actions (Termux arrow keys / PGUP / PGDN)
+    # -----------------------------------------------------------------------
+
+    def action_scroll_up(self) -> None:
+        """Scroll chat log up by one line."""
+        if not self.model_picker_visible:
+            log = self.query_one("#chat-log", RichLog)
+            log.scroll_up(animate=False)
+
+    def action_scroll_down(self) -> None:
+        """Scroll chat log down by one line."""
+        if not self.model_picker_visible:
+            log = self.query_one("#chat-log", RichLog)
+            log.scroll_down(animate=False)
+
+    def action_scroll_page_up(self) -> None:
+        """Scroll chat log up by one page."""
+        log = self.query_one("#chat-log", RichLog)
+        log.scroll_home(animate=False)
+
+    def action_scroll_page_down(self) -> None:
+        """Scroll chat log down by one page."""
+        log = self.query_one("#chat-log", RichLog)
+        log.scroll_end(animate=False)
+
+    def action_scroll_home(self) -> None:
+        """Scroll to top of chat log."""
+        log = self.query_one("#chat-log", RichLog)
+        log.scroll_home(animate=False)
+
+    def action_scroll_end(self) -> None:
+        """Scroll to bottom of chat log."""
+        log = self.query_one("#chat-log", RichLog)
+        log.scroll_end(animate=False)
 
 
 # ---------------------------------------------------------------------------
