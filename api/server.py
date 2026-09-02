@@ -76,7 +76,7 @@ ALL_TOOL_MAP = dict(base_tool_map)
 class ChatRequest(BaseModel):
     message: str
     reflection: bool = True
-    max_iterations: int = 5
+    max_iterations: int = 20
 
 class ChatResponse(BaseModel):
     response: str
@@ -311,6 +311,38 @@ async def get_recent_events():
 async def get_cron():
     """Get cron jobs."""
     return {"jobs": list_cron_jobs()}
+
+# ---------------------------------------------------------------------------
+# Routes: Models
+# ---------------------------------------------------------------------------
+
+@app.get("/api/models")
+async def get_models():
+    """Get available models from all providers."""
+    from llm import list_providers, fetch_models_from_provider
+    providers = list_providers()
+    available = [p for p in providers if p["available"]]
+    result = []
+    for p in available:
+        try:
+            live = await fetch_models_from_provider(p["id"])
+        except Exception:
+            live = p["models"]
+        if not live:
+            live = p["models"]
+        result.append({
+            "provider": p["id"],
+            "display_name": p["display_name"],
+            "models": live[:50],
+        })
+    return {"providers": result}
+
+@app.get("/api/models/switch")
+async def switch_model(provider: str, model: str):
+    """Switch the active model for the session."""
+    from llm import set_session_provider
+    result = set_session_provider(provider, model)
+    return result
 
 # ---------------------------------------------------------------------------
 # Routes: Git

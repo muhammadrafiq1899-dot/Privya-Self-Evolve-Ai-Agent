@@ -373,7 +373,7 @@ class PrivyaTUI:
 
         console.print("[bright_green]  🧠 thinking...[/]")
 
-        for iteration in range(5):
+        for iteration in range(20):
             try:
                 response = await chat(messages, tools=get_all_tools(), temperature=0.7)
             except Exception as e:
@@ -430,7 +430,7 @@ class PrivyaTUI:
                                 "content": json.dumps(result, ensure_ascii=False, default=str)[:4000]})
                 self.context_tokens_used = self._estimate_tokens(messages)
 
-        console.print("[yellow]  ⚠️ Max iterations reached.[/]")
+        console.print("[yellow]  ⚠️ Max iterations reached (20). The task may need to be split into smaller steps.[/]")
 
     async def _auto_save(self, content: str):
         if any(kw in content.lower() for kw in ["important", "remember", "note:", "key insight"]):
